@@ -1,0 +1,1730 @@
+<!doctype html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>人狼カードゲーム MVP（仕様検証用）</title>
+  <style>
+    body { font-family: system-ui, -apple-system, "Segoe UI", sans-serif; margin: 12px; }
+    .row { display:flex; gap:12px; flex-wrap:wrap; align-items:flex-start; }
+    .panel { border:1px solid #ccc; border-radius:8px; padding:10px; background:#fff; }
+    .panel h3 { margin:0 0 8px 0; font-size:16px; }
+
+    .players { display:grid; grid-template-columns: repeat(2, minmax(320px, 1fr)); gap:10px; }
+    .player { border:1px solid #bbb; border-radius:8px; padding:10px; background:#fff; }
+    .player.dead { opacity:0.55; }
+
+    .slots { display:grid; grid-template-columns: repeat(9, 1fr); gap:6px; margin-top:8px; }
+    .slot{
+      border:1px solid #888; border-radius:6px; padding:8px 4px;
+      text-align:center; cursor:pointer; user-select:none;
+      background:#fff;
+      font-size:12px; line-height:1.25;
+      min-height:72px;
+      display:flex; flex-direction:column; justify-content:center;
+      position:relative;
+    }
+    .slot .role{ font-size:11px; margin-top:2px; opacity:0.85; }
+    .slot.deadslot{
+      background:#222; color:#ddd; border-color:#222; cursor:not-allowed;
+    }
+    .slot.deadslot .role{ display:none; }
+
+    .slot.pick{ outline:3px solid #2a7; }
+    .slot.hintpick{ outline:3px dashed #777; }
+
+    .badge{ display:inline-block; padding:2px 6px; border:1px solid #999; border-radius:999px; font-size:12px; margin-left:6px; }
+    .btn{ padding:8px 10px; border:1px solid #888; border-radius:8px; background:#fff; cursor:pointer; }
+    .btn:disabled{ opacity:0.5; cursor:not-allowed; }
+    .mini{ font-size:12px; color:#333; }
+
+    .log, .stock{
+      white-space:pre-wrap;
+      font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+      font-size:12px;
+      overflow:auto;
+    }
+    .log{ max-height:320px; }
+    .stock{ max-height:240px; }
+
+    select{ padding:6px 8px; border-radius:8px; }
+    .danger{ color:#b00; font-weight:700; }
+    .hint{ color:#0a5; font-weight:700; }
+    .big{ font-size:14px; font-weight:700; }
+
+    .tagRow { display:flex; justify-content:center; gap:4px; margin-top:4px; }
+    .tag { display:inline-block; font-size:10px; padding:1px 6px; border-radius:999px; border:1px solid #999; }
+    .tagMad { border-color:#a72; }
+    .tagGuard { border-color:#27a; }
+    .tagSeerOpen { border-color:#777; }
+
+    details.summaryBox > summary{
+      cursor:pointer;
+      user-select:none;
+      font-weight:700;
+      padding:2px 0;
+      list-style:none;
+    }
+    details.summaryBox > summary::-webkit-details-marker{ display:none; }
+
+    .phaseBar{ padding:10px; }
+    .phaseBarInnerRow{ display:flex; gap:8px; flex-wrap:wrap; align-items:center; }
+    .phasePill{ display:inline-block; padding:4px 10px; border:1px solid #999; border-radius:999px; font-size:12px; background:#fff; }
+    .phaseStrong{ font-weight:700; }
+
+    .actingLine{
+      margin-top:8px;
+      padding:8px 10px;
+      border-radius:10px;
+      border:1px dashed #aaa;
+      background:#fafafa;
+      font-size:12px;
+      display:flex;
+      align-items:center;
+      justify-content:space-between;
+      gap:10px;
+    }
+    .actingLeft{ display:flex; gap:10px; flex-wrap:wrap; align-items:center; }
+    .actingTag{ font-weight:700; color:#0a5; }
+    .actingSmall{ color:#444; }
+    .toggleRow{ display:flex; gap:10px; align-items:center; flex-wrap:wrap; }
+
+    .overlay{
+      position:fixed;
+      inset:0;
+      background:rgba(0,0,0,0.55);
+      display:none;
+      align-items:center;
+      justify-content:center;
+      z-index:9999;
+      padding:12px;
+    }
+    .overlay.show{ display:flex; }
+    .overlayCard{
+      width:min(720px, 96vw);
+      background:#fff;
+      border-radius:14px;
+      border:1px solid #ccc;
+      padding:14px;
+      box-shadow:0 10px 30px rgba(0,0,0,0.25);
+    }
+    .overlayTitle{ font-size:16px; font-weight:800; margin:0 0 10px 0; }
+    .overlayStatus{ display:flex; gap:8px; flex-wrap:wrap; margin-bottom:10px; }
+    .overlayPill{ padding:6px 10px; border:1px solid #999; border-radius:999px; font-size:12px; background:#fff; }
+    .overlayLog{
+      border:1px solid #ddd;
+      border-radius:12px;
+      padding:10px;
+      background:#fafafa;
+      font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+      font-size:12px;
+      white-space:pre-wrap;
+      max-height:280px;
+      overflow:auto;
+    }
+    .overlayFooter{ margin-top:10px; display:flex; justify-content:flex-end; gap:10px; align-items:center; }
+
+    @media (max-width: 760px){
+      .players{ grid-template-columns: 1fr; }
+      .phaseBar{
+        position: sticky;
+        top: 0;
+        z-index: 50;
+        background:#fff;
+      }
+      body{ margin: 10px; }
+    }
+  </style>
+</head>
+
+<body>
+  <!-- ロビー演出 -->
+  <div id="lobbyOverlay" class="overlay" aria-hidden="true">
+    <div class="overlayCard">
+      <div class="overlayTitle" id="lobbyTitle">ロビー</div>
+      <div class="overlayStatus" id="lobbyStatus"></div>
+      <div class="overlayLog" id="lobbyLog"></div>
+      <div class="overlayFooter">
+        <div class="mini" id="lobbyHint">演出中…</div>
+        <button id="btnLobbySkip" class="btn">>> スキップ</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 上部：折りたたみ -->
+  <details id="topDetails" class="summaryBox" open>
+    <summary>操作・詳細（タップで開閉）</summary>
+
+    <div class="panel" style="margin-top:10px;">
+      <h3>操作</h3>
+
+      <div class="toggleRow" style="margin-bottom:10px;">
+        <label class="mini" style="display:flex;gap:8px;align-items:center;">
+          <input id="chkEffects" type="checkbox" checked />
+          疑似オンライン演出（遅延/ロビー/行動中表示）
+        </label>
+        <button id="btnFastForward" class="btn">>>（演出スキップ）</button>
+        <span class="mini">※ロジックは即決、表示だけ遅延</span>
+      </div>
+
+      <div class="row">
+        <button id="btnNew" class="btn">新規ゲーム</button>
+        <button id="btnReset" class="btn">同じ配りでリセット</button>
+        <button id="btnAutoOne" class="btn">タイムアウト（今の手番だけ）</button>
+      </div>
+
+      <div style="margin-top:10px;" class="row">
+        <div class="panel" style="flex:1; min-width:320px;">
+          <h3>現在状態（詳細）</h3>
+          <div id="status"></div>
+
+          <div class="mini" style="margin-top:8px;">
+            ・占いマーク（白/黒）は最新結果で上書き、スロットに残る（全体公開）<br/>
+            ・黒が出た占いは「★占」として公開（反転黒でも公開）<br/>
+            ・CPUは占いマークを真実として扱い、反転の可能性は推理しない<br/>
+            ・行動順：①占い→②吊り→③狂人→④狩人→⑤噛み（Round0は狂人→狩人）<br/>
+            ・吊り後/噛み後：人狼0判定→リタイヤ→勝利判定<br/>
+            ・噛み不発理由（ガード/人狼）は非公開（CPU内部タグのみ）<br/>
+            ・生存者1人なら left/right が null になるので、占い/吊り/噛みは自動スキップ（落ち防止）<br/>
+            ・狂人の反転は1回きり：発動後は選択不可（スキップのみ）<br/>
+            ・役職がいない場合だけ「不在→OK」でスキップ可能
+          </div>
+        </div>
+
+        <div class="panel" style="min-width:320px;">
+          <h3>公開占い（★占）</h3>
+          <div class="mini">黒を出した占いの「位置」だけを表示（誰から見ても同じ）</div>
+          <div id="stock" class="stock" style="margin-top:8px;"></div>
+        </div>
+
+        <div class="panel" style="min-width:280px;">
+          <h3>表示視点（デバッグ）</h3>
+          <div class="row" style="align-items:center;">
+            <div>View as:</div>
+            <select id="viewAs"></select>
+          </div>
+
+          <div id="mediumInfo" class="mini" style="margin-top:10px;"></div>
+
+          <div class="panel" style="margin-top:10px;">
+            <div class="row" style="align-items:center;">
+              <div><b>役職不在時</b></div>
+              <button id="btnAbsentOk" class="btn">不在→OK（スキップ）</button>
+            </div>
+            <div class="mini" style="margin-top:4px;">（占い/狂人/狩人が“いない”時のみ有効）</div>
+          </div>
+
+        </div>
+      </div>
+    </div>
+  </details>
+
+  <!-- プレイヤー直前：フェーズ表示（常に見える）＋霊媒ピン留め（折りたたみ時も見える） -->
+  <div class="panel phaseBar" style="margin-top:12px;">
+    <div id="phaseBarInner"></div>
+  </div>
+
+  <div class="panel" style="margin-top:12px;">
+    <h3>プレイヤー</h3>
+    <div id="players" class="players"></div>
+  </div>
+
+  <div class="panel" style="margin-top:12px;">
+    <h3>全体ログ（最終アクションまで保持）</h3>
+    <div id="log" class="log"></div>
+  </div>
+
+  <script>
+/* ============
+   エラー表示
+============ */
+window.onerror = (msg, src, line, col) => {
+  const el = document.getElementById("status");
+  if (el) el.innerHTML = `<span class="danger">JSエラー:</span> ${msg}<br>${line}:${col}`;
+};
+
+/* ============
+   定義
+============ */
+const CONFIG = {
+  humanPlayerId: 0,
+  autoPlayers: true,
+  autoSafetySteps: 800,
+  effectsEnabled: true,
+};
+
+const ROLES = {
+  WOLF: "人狼",
+  MAD: "狂人",
+  SEER: "占い",
+  GUARD: "狩人",
+  MEDIUM: "霊媒",
+  VILLAGER: "村人",
+};
+
+const PHASES = {
+  ROUND0_MAD: "Round0:狂人（反転対象選択）",
+  ROUND0_GUARD: "Round0:狩人守り設定",
+  SEER: "占い",
+  LYNCH: "吊り",
+  MAD: "狂人設定",
+  GUARD: "狩人守り設定",
+  BITE: "噛み",
+  END: "終了",
+};
+
+const MARK = { GRAY:"GRAY", WHITE:"WHITE", BLACK:"BLACK" };
+
+function shuffle(arr, rnd=Math.random) {
+  const a = arr.slice();
+  for (let i=a.length-1;i>0;i--) {
+    const j = Math.floor(rnd()*(i+1));
+    [a[i],a[j]] = [a[j],a[i]];
+  }
+  return a;
+}
+function nowStamp(){
+  const d=new Date();
+  const hh=String(d.getHours()).padStart(2,"0");
+  const mm=String(d.getMinutes()).padStart(2,"0");
+  const ss=String(d.getSeconds()).padStart(2,"0");
+  return `${hh}:${mm}:${ss}`;
+}
+function randInt(min, max){
+  return Math.floor(Math.random()*(max-min+1)) + min;
+}
+
+/* ============
+   グローバル
+============ */
+let baseDeal = null;
+let game = null;
+
+/* ============
+   疑似オンライン演出（遅延/スキップ）
+============ */
+let effectSkipToken = 0;
+let overlaySkip = false;
+
+function fastForward(){
+  effectSkipToken += 1;
+  overlaySkip = true;
+}
+
+function calcActionDelayMs(){
+  const base = randInt(600, 1400);
+  const extra = (Math.random() < 0.10) ? randInt(800, 1800) : 0;
+  return base + extra;
+}
+function sleepMs(ms){
+  const myToken = effectSkipToken;
+  if(!CONFIG.effectsEnabled) return Promise.resolve();
+  return new Promise(res=>{
+    const t = setTimeout(()=>res(), ms);
+    const tick = ()=>{
+      if(effectSkipToken !== myToken){
+        clearTimeout(t);
+        res();
+        return;
+      }
+      requestAnimationFrame(tick);
+    };
+    requestAnimationFrame(tick);
+  });
+}
+
+/* ============
+   ロビー演出
+============ */
+function showLobby(show){
+  const ov = document.getElementById("lobbyOverlay");
+  if(!ov) return;
+  if(show){
+    ov.classList.add("show");
+    ov.setAttribute("aria-hidden","false");
+  }else{
+    ov.classList.remove("show");
+    ov.setAttribute("aria-hidden","true");
+  }
+}
+function lobbySet(title, pills, logLines, hintText){
+  const t = document.getElementById("lobbyTitle");
+  const s = document.getElementById("lobbyStatus");
+  const l = document.getElementById("lobbyLog");
+  const h = document.getElementById("lobbyHint");
+  if(t) t.textContent = title || "ロビー";
+  if(s){
+    s.innerHTML = "";
+    for(const p of pills){
+      const d = document.createElement("div");
+      d.className = "overlayPill";
+      d.textContent = p;
+      s.appendChild(d);
+    }
+  }
+  if(l) l.textContent = logLines.join("\n");
+  if(h) h.textContent = hintText || "";
+}
+async function playLobbySequence(){
+  if(!CONFIG.effectsEnabled) return;
+
+  overlaySkip = false;
+  showLobby(true);
+
+  const logLines = [];
+  const pills = [];
+
+  const push = (txt)=>{
+    logLines.push(`[${nowStamp()}] ${txt}`);
+    lobbySet("ロビー", pills, logLines, "演出中…（>>でスキップ）");
+  };
+  const wait = async (ms)=>{
+    if(overlaySkip) return;
+    await sleepMs(ms);
+  };
+
+  pills.length = 0; pills.push("参加者 1/4");
+  push("ロビーに接続中…");
+
+  await wait(randInt(400, 900)); push("P1 入室");
+  await wait(randInt(400, 900)); pills[0] = "参加者 2/4"; push("P2 入室");
+  await wait(randInt(400, 900)); pills[0] = "参加者 3/4"; push("P3 入室");
+  await wait(randInt(400, 900)); pills[0] = "参加者 4/4"; push("P4 入室");
+
+  await wait(randInt(500, 1100)); pills.push("役職配布中"); push("役職配布中…");
+  await wait(randInt(400, 900));  pills.push("同期中");     push("同期中…");
+  await wait(randInt(500, 1100)); pills.push("準備完了待ち"); push("準備完了待ち…");
+  await wait(randInt(400, 900));  push("全員準備完了");
+  await wait(randInt(400, 900));  push("夜明け…");
+
+  await wait(randInt(400, 900));
+  showLobby(false);
+}
+
+/* ============
+   初期化（ゲーム生成）
+============ */
+function makeNewGame(fixedDeal=null){
+  const deck = [
+    ROLES.WOLF, ROLES.WOLF,
+    ROLES.MAD,
+    ROLES.SEER,
+    ROLES.GUARD,
+    ROLES.MEDIUM,
+    ROLES.VILLAGER, ROLES.VILLAGER, ROLES.VILLAGER
+  ];
+
+  const players = [];
+  for (let p=0;p<4;p++){
+    const roles = fixedDeal ? fixedDeal[p].slice() : shuffle(deck);
+    const slots = roles.map(r => ({
+      role: r,
+      dead: false,
+
+      // 全体公開：最新占い結果（白/黒）
+      publicSeer: { last: null, changedLast: false, byActorId: null },
+
+      // 噛み不発タグ（非公開）
+      biteFailCount: 0,
+      biteFailTurn: null,
+    }));
+
+    players.push({
+      id: p,
+      alive: true,
+      slots,
+
+      // 狂人（反転対象：自分のスロット1つ）
+      invertIndex: null,
+      madUsed: false,          // 反転が1回でも発動したら true（以後選択不可）
+
+      // 狩人（守り：自分のスロット1つ）
+      guardIndex: null,
+
+      // 霊媒表示
+      mediumWolfSnapshot: null,
+    });
+  }
+
+  return {
+    players,
+    phase: PHASES.ROUND0_MAD,
+    turn: 0,
+    winners: [],
+    over: false,
+    log: [],
+
+    // ★占：黒を出した占いの位置（playerId -> slotIndex or null）
+    publicSeerReveal: [null, null, null, null],
+
+    // 噛み回数（非公開）
+    biteNo: 0,
+  };
+}
+
+/* ============
+   ログ
+============ */
+function logPush(text){
+  if(!game) return;
+  game.log.push(`[${nowStamp()}] ${text}`);
+}
+
+/* ============
+   便利
+============ */
+function countRoleRemaining(pl, role){
+  return pl.slots.reduce((acc,s)=>acc + ((!s.dead && s.role===role)?1:0), 0);
+}
+function hasRoleAlive(pl, role){ return countRoleRemaining(pl, role) > 0; }
+function wolfCount(pl){ return countRoleRemaining(pl, ROLES.WOLF); }
+function villageRolesTotal(pl){
+  return countRoleRemaining(pl, ROLES.SEER) + countRoleRemaining(pl, ROLES.GUARD) + countRoleRemaining(pl, ROLES.MEDIUM);
+}
+function findRoleIndex(pl, role){
+  for(let i=0;i<pl.slots.length;i++){
+    if(pl.slots[i].role===role) return i;
+  }
+  return null;
+}
+function nextAliveIndex(from, dir){
+  const n = game.players.length;
+  for(let step=1; step<=n; step++){
+    const idx = (from + dir*step + n) % n;
+    if(game.players[idx].alive) return idx;
+  }
+  return null;
+}
+function leftPlayerIndex(actorId){ return nextAliveIndex(actorId, -1); }
+function rightPlayerIndex(actorId){ return nextAliveIndex(actorId, +1); }
+
+function getAliveSlotIndices(pl){
+  const res = [];
+  for(let i=0;i<pl.slots.length;i++){
+    if(!pl.slots[i].dead) res.push(i);
+  }
+  return res;
+}
+function getGuardableSlotIndices(pl){
+  const res = [];
+  for(let i=0;i<pl.slots.length;i++){
+    const s = pl.slots[i];
+    if(s.dead) continue;
+    if(s.role === ROLES.GUARD) continue;
+    if(s.role === ROLES.WOLF) continue;
+    res.push(i);
+  }
+  return res;
+}
+function getMark(slot){
+  if(!slot || !slot.publicSeer || !slot.publicSeer.last) return MARK.GRAY;
+  return (slot.publicSeer.last === "黒") ? MARK.BLACK : MARK.WHITE;
+}
+function isRecentBiteFail(slot, currentBiteNo, avoidSpan=2){
+  const bf = slot.biteFailCount || 0;
+  const bt = slot.biteFailTurn;
+  if(bf <= 0) return false;
+  if(bt === null || typeof bt !== "number") return false;
+  return (currentBiteNo - bt) <= avoidSpan;
+}
+function isPublicSeerSlot(playerId, slotIndex){
+  return (typeof game.publicSeerReveal[playerId] === "number")
+    && (game.publicSeerReveal[playerId] === slotIndex);
+}
+
+/* ============
+   CPUの選択（確定ロジック）
+============ */
+function pickRandom(arr){
+  return arr[Math.floor(Math.random()*arr.length)];
+}
+function pickByMarkPriority(candidates, priority){
+  for(const m of priority){
+    const same = candidates.filter(x => getMark(x.slot) === m);
+    if(same.length) return pickRandom(same);
+  }
+  return candidates.length ? pickRandom(candidates) : null;
+}
+function pickByMarkPriorityWithTieBonus(candidates, priority, bonusFn){
+  for(const m of priority){
+    const same = candidates.filter(x => getMark(x.slot) === m);
+    if(!same.length) continue;
+
+    let best = same[0];
+    let bestScore = -1e18;
+    for(const x of same){
+      const score = (bonusFn ? bonusFn(x) : 0) + Math.random()*0.01;
+      if(score > bestScore){
+        bestScore = score;
+        best = x;
+      }
+    }
+    return best;
+  }
+  return candidates.length ? pickRandom(candidates) : null;
+}
+
+// 狩人：占い > 狂人 > 霊媒 > 村人（同種はランダム）
+function cpuPickGuardIndex(actor){
+
+  const alivePlayers = game.players.filter(p=>p.alive).length;
+  const publicSeerExists = Object.values(game.publicSeerReveal).some(v=>typeof v==="number");
+
+  const candidates = [];
+
+  for(let i=0;i<actor.slots.length;i++){
+    const s = actor.slots[i];
+    if(s.dead) continue;
+    if(s.role === ROLES.GUARD) continue;
+    if(s.role === ROLES.WOLF) continue;
+
+    candidates.push({
+      slotIndex:i,
+      slot:s,
+      mark:getMark(s),
+      role:s.role
+    });
+  }
+
+  if(!candidates.length) return null;
+
+  function priorityScore(c){
+
+    const isPublicSeer = (game.publicSeerReveal[actor.id] === c.slotIndex);
+    const mark = c.mark;
+    const role = c.role;
+    const madUsed = actor.madUsed;
+
+    // ==============================
+    // ▼ 3人以上 & 公開占いあり
+    // ==============================
+    if(alivePlayers >= 3 && publicSeerExists){
+
+      if(mark === MARK.WHITE) return 100;
+      if(role === ROLES.SEER && !isPublicSeer) return 90;
+      if(role === ROLES.MAD && !madUsed) return 80;
+      if(role === ROLES.MEDIUM) return 70;
+      if(role === ROLES.MAD) return 60;
+      if(role === ROLES.VILLAGER) return 50;
+      if(isPublicSeer) return 10;
+
+      return 0;
+    }
+
+    // ==============================
+    // ▼ 2人のとき
+    // ==============================
+    if(alivePlayers === 2){
+
+      if(isPublicSeer) return 100;
+      if(mark === MARK.WHITE) return 90;
+      if(role === ROLES.SEER && !isPublicSeer) return 80;
+      if(role === ROLES.MAD && !madUsed) return 70;
+      if(role === ROLES.MEDIUM) return 60;
+      if(role === ROLES.MAD) return 50;
+      if(role === ROLES.VILLAGER) return 40;
+
+      return 0;
+    }
+
+    // デフォルト
+    if(mark === MARK.WHITE) return 50;
+    return 0;
+  }
+
+  let best = null;
+  let bestScore = -1;
+
+  for(const c of candidates){
+    const score = priorityScore(c) + Math.random()*0.01;
+    if(score > bestScore){
+      bestScore = score;
+      best = c;
+    }
+  }
+
+  return best.slotIndex;
+}
+
+/* ============
+   ルール処理
+============ */
+function killSlot(playerId, slotIndex){
+  const pl = game.players[playerId];
+  if(!pl.alive) return;
+  const slot = pl.slots[slotIndex];
+  if(slot.dead) return;
+
+  slot.dead = true;
+
+  // 公開占いがそのスロットなら、スロットが死んでも「公開の事実」は残す（位置は残す）
+  // （表示上はDEADスロットにも★占が残る）
+
+  if(pl.invertIndex === slotIndex){
+    pl.invertIndex = null;
+    logPush(`P${playerId+1} 反転対象がDEAD → 反転解除`);
+  }
+
+  if(slot.role === ROLES.MAD){
+    pl.invertIndex = null;
+    logPush(`P${playerId+1} 狂人カードがDEAD → 能力消滅`);
+  }
+
+  if(slot.role === ROLES.MEDIUM){
+    if(pl.mediumWolfSnapshot === null){
+      pl.mediumWolfSnapshot = game.players.map(x => wolfCount(x));
+      logPush(`P${playerId+1} 霊媒カードがDEAD → 霊媒表示は固定化`);
+    }
+  }
+
+  if(slot.role === ROLES.GUARD){
+    pl.guardIndex = null;
+    logPush(`P${playerId+1} 狩人カードがDEAD → 守り無効`);
+  }
+}
+
+function retireIfWolfZero(){
+  for(const pl of game.players){
+    if(pl.alive && wolfCount(pl) === 0){
+      pl.alive = false;
+
+      for(const s of pl.slots){
+        s.dead = true;
+      }
+
+      pl.invertIndex = null;
+      pl.guardIndex = null;
+
+      logPush(`P${pl.id+1} 人狼0 → 即リタイヤ（全スロットDEAD表示）`);
+
+      if(pl.mediumWolfSnapshot === null && findRoleIndex(pl, ROLES.MEDIUM) !== null){
+        pl.mediumWolfSnapshot = game.players.map(x => wolfCount(x));
+      }
+    }
+  }
+}
+
+function checkWinnersAndEndIfAny(){
+  const alive = game.players.filter(p=>p.alive);
+  if(alive.length === 0) return;
+
+  const winners = [];
+  for(const pl of alive){
+    const othersAllRetired = game.players.every(x => x.id===pl.id ? true : !x.alive);
+    if(othersAllRetired && wolfCount(pl) >= 1) winners.push(pl.id);
+  }
+
+  if(winners.length){
+    game.winners = winners;
+    game.over = true;
+    game.phase = PHASES.END;
+    logPush(`勝利確定 → 勝者: ${winners.map(id=>`P${id+1}`).join(", ")}`);
+  }
+}
+
+function updateAfterKill(){
+  retireIfWolfZero();
+  checkWinnersAndEndIfAny();
+}
+
+function advanceRound0(){
+  if(game.over) return;
+
+  if(game.phase === PHASES.ROUND0_MAD){
+    game.phase = PHASES.ROUND0_GUARD;
+    return;
+  }
+
+  if(game.phase === PHASES.ROUND0_GUARD){
+    if(game.turn < 3){
+      game.turn += 1;
+      game.phase = PHASES.ROUND0_MAD;
+    } else {
+      game.turn = 0;
+      game.phase = PHASES.SEER;
+      logPush("Round0終了 → 通常ターン開始");
+    }
+  }
+}
+
+function advancePhase(){
+  if(game.over) return;
+  if(game.phase === PHASES.ROUND0_MAD || game.phase === PHASES.ROUND0_GUARD) return;
+
+  const order = [PHASES.SEER, PHASES.LYNCH, PHASES.MAD, PHASES.GUARD, PHASES.BITE];
+  const idx = order.indexOf(game.phase);
+  if(idx === -1) return;
+
+  if(idx < order.length - 1){
+    game.phase = order[idx+1];
+  } else {
+    const next = nextAliveIndex(game.turn, +1);
+    game.turn = (next === null) ? game.turn : next;
+    game.phase = PHASES.SEER;
+  }
+}
+
+/* ============
+   各フェーズ解決
+============ */
+function resolveSeer(actorId, targetId, slotIndex){
+  const actor = game.players[actorId];
+
+  if(targetId === null){
+    logPush(`P${actorId+1} 占い → 対象なし（生存者1人）なのでスキップ`);
+    advancePhase();
+    return;
+  }
+  const target = game.players[targetId];
+
+  if(!hasRoleAlive(actor, ROLES.SEER)){
+    logPush(`P${actorId+1} 占い不在 → OK（スキップ）`);
+    advancePhase();
+    return;
+  }
+
+  const slot = target.slots[slotIndex];
+  if(slot.dead){
+    logPush(`P${actorId+1} 占い: 対象がDEADで無効`);
+    return;
+  }
+
+  let isBlack = (slot.role === ROLES.WOLF);
+  let wasInverted = false;
+
+  // 反転は「占われる側」。1回きり：発動時に target.madUsed=true
+  if(!target.madUsed && hasRoleAlive(target, ROLES.MAD) && target.invertIndex === slotIndex){
+    isBlack = !isBlack;
+    wasInverted = true;
+    target.madUsed = true;
+    logPush(`P${targetId+1} 狂人反転が発動（1回きり）→ 以後は選択不可`);
+  }
+
+  const res = isBlack ? "黒" : "白";
+  const prev = slot.publicSeer.last;
+  const changedLast = (prev !== null && prev !== res);
+
+  slot.publicSeer = { last: res, changedLast, byActorId: actorId };
+
+  // ★占公開：黒が出たら占いの位置を公開（反転黒でも同様）
+  if(res === "黒"){
+    game.publicSeerReveal[actorId] = findRoleIndex(actor, ROLES.SEER);
+  }
+
+  logPush(`P${actorId+1} 占い → P${targetId+1} S${slotIndex+1} = ${res}${changedLast ? "（変化）" : ""}${wasInverted ? "（反転結果）" : ""}`);
+
+  advancePhase();
+}
+
+function resolveLynch(actorId, targetId, slotIndex){
+  if(targetId === null){
+    logPush(`P${actorId+1} 吊り → 対象なし（生存者1人）なのでスキップ`);
+    advancePhase();
+    return;
+  }
+  const target = game.players[targetId];
+  if(target.slots[slotIndex].dead) return;
+
+  killSlot(targetId, slotIndex);
+  logPush(`P${actorId+1} 吊り → P${targetId+1} S${slotIndex+1}（カード種別は非公開／対象スロットはDEAD）`);
+
+  updateAfterKill();
+  if(!game.over) advancePhase();
+}
+
+function resolveMadPick(actorId, slotIndex){
+  const pl = game.players[actorId];
+
+  if(!hasRoleAlive(pl, ROLES.MAD)){
+    pl.invertIndex = null;
+    const label = (game.phase === PHASES.ROUND0_MAD) ? "Round0 狂人" : "狂人";
+    logPush(`P${actorId+1} ${label}不在 → OK（スキップ）`);
+    if(game.phase === PHASES.ROUND0_MAD) advanceRound0(); else advancePhase();
+    return;
+  }
+
+  if(pl.madUsed){
+    const label = (game.phase === PHASES.ROUND0_MAD) ? "Round0 狂人" : "狂人設定";
+    logPush(`P${actorId+1} ${label} → 発動済み（1回きり）のためスキップのみ`);
+    if(game.phase === PHASES.ROUND0_MAD) advanceRound0(); else advancePhase();
+    return;
+  }
+
+  if(pl.slots[slotIndex].dead){
+    logPush(`P${actorId+1} 狂人 → DEADは選べない`);
+    return;
+  }
+
+  pl.invertIndex = slotIndex;
+  const label = (game.phase === PHASES.ROUND0_MAD) ? "Round0 狂人" : "狂人設定";
+  logPush(`P${actorId+1} ${label} → 反転対象設定（非公開）`);
+
+  if(game.phase === PHASES.ROUND0_MAD) advanceRound0(); else advancePhase();
+}
+
+function resolveGuard(actorId, slotIndex){
+  const pl = game.players[actorId];
+
+  if(!hasRoleAlive(pl, ROLES.GUARD)){
+    pl.guardIndex = null;
+    const label = (game.phase === PHASES.ROUND0_GUARD) ? "Round0 狩人" : "狩人";
+    logPush(`P${actorId+1} ${label}不在 → OK（スキップ）`);
+    if(game.phase === PHASES.ROUND0_GUARD) advanceRound0(); else advancePhase();
+    return;
+  }
+
+  const slot = pl.slots[slotIndex];
+  if(slot.dead){
+    logPush(`P${actorId+1} 狩人設定 → DEADは選べない`);
+    return;
+  }
+  if(slot.role === ROLES.GUARD || slot.role === ROLES.WOLF){
+    logPush(`P${actorId+1} 狩人設定 → 守れないカード（狩人/人狼）`);
+    return;
+  }
+
+  pl.guardIndex = slotIndex;
+
+  if(game.phase === PHASES.ROUND0_GUARD){
+    logPush(`P${actorId+1} Round0 狩人守り → 設定完了（非公開）`);
+    advanceRound0();
+    return;
+  }
+
+  logPush(`P${actorId+1} 狩人守り設定 → 設定完了（非公開）`);
+  advancePhase();
+}
+
+function resolveBite(actorId, targetId, slotIndex){
+  if(targetId === null){
+    logPush(`P${actorId+1} 噛み → 対象なし（生存者1人）なのでスキップ`);
+    advancePhase();
+    return;
+  }
+
+  const target = game.players[targetId];
+  const slot = target.slots[slotIndex];
+  if(slot.dead) return;
+
+  const isWolf = (slot.role === ROLES.WOLF);
+  const isGuarded = (target.guardIndex === slotIndex);
+
+  game.biteNo += 1;
+
+  if(isWolf || isGuarded){
+    slot.biteFailCount += 1;
+    slot.biteFailTurn = game.biteNo;
+    logPush(`P${actorId+1} 噛み → P${targetId+1} S${slotIndex+1}（不発：理由は非公開）`);
+  } else {
+    killSlot(targetId, slotIndex);
+    logPush(`P${actorId+1} 噛み → P${targetId+1} S${slotIndex+1}（DEAD：理由は非公開）`);
+    updateAfterKill();
+  }
+
+  if(!game.over) advancePhase();
+}
+
+/* ============
+   不在→OK（役職が“いない”時だけ）
+============ */
+function canAbsentOk(){
+  if(game.over) return false;
+  if(game.turn !== CONFIG.humanPlayerId) return false;
+
+  const actor = game.players[game.turn];
+
+  if(game.phase === PHASES.SEER)  return !hasRoleAlive(actor, ROLES.SEER);
+  if(game.phase === PHASES.MAD)   return !hasRoleAlive(actor, ROLES.MAD);
+  if(game.phase === PHASES.GUARD) return !hasRoleAlive(actor, ROLES.GUARD);
+
+  if(game.phase === PHASES.ROUND0_MAD)   return !hasRoleAlive(actor, ROLES.MAD);
+  if(game.phase === PHASES.ROUND0_GUARD) return !hasRoleAlive(actor, ROLES.GUARD);
+
+  return false;
+}
+function doAbsentOk(){
+  if(!canAbsentOk()) return;
+
+  const actorId = game.turn;
+
+  if(game.phase === PHASES.SEER){ logPush(`P${actorId+1} 占い不在 → OK（スキップ）`); advancePhase(); return; }
+  if(game.phase === PHASES.MAD){  logPush(`P${actorId+1} 狂人不在 → OK（スキップ）`); advancePhase(); return; }
+  if(game.phase === PHASES.GUARD){logPush(`P${actorId+1} 狩人不在 → OK（スキップ）`); advancePhase(); return; }
+
+  if(game.phase === PHASES.ROUND0_MAD){ logPush(`P${actorId+1} Round0 狂人不在 → OK（スキップ）`); advanceRound0(); return; }
+  if(game.phase === PHASES.ROUND0_GUARD){ logPush(`P${actorId+1} Round0 狩人不在 → OK（スキップ）`); advanceRound0(); return; }
+}
+
+/* ============
+   CPU 1手（即時確定）
+============ */
+function cpuDoOneImmediate(){
+  if(game.over) return;
+
+  const actorId = game.turn;
+  const actor = game.players[actorId];
+
+  // Round0 狂人
+  if(game.phase === PHASES.ROUND0_MAD){
+    if(!hasRoleAlive(actor, ROLES.MAD)){
+      logPush(`CPU: P${actorId+1} Round0 狂人不在 → OK（スキップ）`);
+      advanceRound0();
+      return;
+    }
+    if(actor.madUsed){
+      logPush(`CPU: P${actorId+1} Round0 狂人 → 発動済み（1回きり）のためスキップ`);
+      advanceRound0();
+      return;
+    }
+    const idx = cpuPickMadInvertIndexByWolfStock(actor);
+    if(idx === null){
+      logPush(`CPU: P${actorId+1} Round0 狂人 → 対象なし（進行のみ）`);
+      advanceRound0();
+      return;
+    }
+    logPush(`CPU: P${actorId+1} Round0 狂人 → 反転対象を選択（非公開）`);
+    resolveMadPick(actorId, idx);
+    return;
+  }
+
+  // Round0 狩人
+  if(game.phase === PHASES.ROUND0_GUARD){
+    if(!hasRoleAlive(actor, ROLES.GUARD)){
+      logPush(`CPU: P${actorId+1} Round0 狩人不在 → OK（スキップ）`);
+      advanceRound0();
+      return;
+    }
+    const pick = cpuPickGuardIndex(actor);
+    if(pick === null){
+      logPush(`CPU: P${actorId+1} Round0 狩人守り → 守れるスロットなし（進行のみ）`);
+      advanceRound0();
+      return;
+    }
+    logPush(`CPU: P${actorId+1} Round0 狩人守り → 優先順位で選択`);
+    resolveGuard(actorId, pick);
+    return;
+  }
+
+  // 占い（左対象 / GRAY>WHITE>BLACK）
+  if(game.phase === PHASES.SEER){
+    if(!hasRoleAlive(actor, ROLES.SEER)){
+      logPush(`CPU: P${actorId+1} 占い不在 → OK（スキップ）`);
+      advancePhase();
+      return;
+    }
+    const left = leftPlayerIndex(actorId);
+    if(left === null){
+      logPush(`CPU: P${actorId+1} 占い → 対象なし（生存者1人）なのでスキップ`);
+      advancePhase();
+      return;
+    }
+    const tgt = game.players[left];
+    const cand = getAliveSlotIndices(tgt).map(i => ({ slotIndex:i, slot: tgt.slots[i] }));
+    const pick = pickByMarkPriority(cand, [MARK.GRAY, MARK.WHITE, MARK.BLACK]);
+    logPush(`CPU: P${actorId+1} 占い → 左の優先順位で選択（全体公開）`);
+    resolveSeer(actorId, left, pick.slotIndex);
+    return;
+  }
+
+  // 吊り（左）：黒 > グレー > 白 > 公開占い（★占は最後）
+  if(game.phase === PHASES.LYNCH){
+    const left = leftPlayerIndex(actorId);
+    if(left === null){
+      logPush(`CPU: P${actorId+1} 吊り → 対象なし（生存者1人）なのでスキップ`);
+      advancePhase();
+      return;
+    }
+    const tgt = game.players[left];
+
+    const candAll = getAliveSlotIndices(tgt).map(i => ({
+      slotIndex:i, slot: tgt.slots[i]
+    }));
+
+    const candNonPublic = candAll.filter(x => !isPublicSeerSlot(left, x.slotIndex));
+    const candPublic    = candAll.filter(x =>  isPublicSeerSlot(left, x.slotIndex));
+
+    let pick = null;
+
+    if(candNonPublic.length){
+      pick = pickByMarkPriorityWithTieBonus(
+        candNonPublic,
+        [MARK.BLACK, MARK.GRAY, MARK.WHITE],
+        (x)=>((x.slot.biteFailCount||0) > 0 ? 0.5 : 0)
+      );
+    }else if(candPublic.length){
+      pick = pickRandom(candPublic);
+    }else{
+      pick = pickRandom(candAll);
+    }
+
+    logPush(`CPU: P${actorId+1} 吊り → 左の優先順位で選択`);
+    resolveLynch(actorId, left, pick.slotIndex);
+    return;
+  }
+
+  // 狂人（毎ターン選択、ただし発動済みならスキップのみ）
+  if(game.phase === PHASES.MAD){
+    if(!hasRoleAlive(actor, ROLES.MAD)){
+      logPush(`CPU: P${actorId+1} 狂人不在 → OK（スキップ）`);
+      advancePhase();
+      return;
+    }
+    if(actor.madUsed){
+      logPush(`CPU: P${actorId+1} 狂人設定 → 発動済み（1回きり）のためスキップ`);
+      advancePhase();
+      return;
+    }
+    const idx = cpuPickMadInvertIndexByWolfStock(actor);
+    if(idx === null){
+      logPush(`CPU: P${actorId+1} 狂人設定 → 対象なし（進行のみ）`);
+      advancePhase();
+      return;
+    }
+    logPush(`CPU: P${actorId+1} 狂人設定 → 反転対象を選択（非公開）`);
+    resolveMadPick(actorId, idx);
+    return;
+  }
+
+  // 狩人（毎ターン選択）
+  if(game.phase === PHASES.GUARD){
+    if(!hasRoleAlive(actor, ROLES.GUARD)){
+      logPush(`CPU: P${actorId+1} 狩人不在 → OK（スキップ）`);
+      advancePhase();
+      return;
+    }
+    const pick = cpuPickGuardIndex(actor);
+    if(pick === null){
+      logPush(`CPU: P${actorId+1} 狩人守り → 守れるスロットなし（進行のみ）`);
+      advancePhase();
+      return;
+    }
+    logPush(`CPU: P${actorId+1} 狩人守り → 役職優先で選択`);
+    resolveGuard(actorId, pick);
+    return;
+  }
+
+// 噛み（右）
+if(game.phase === PHASES.BITE){
+
+  const right = rightPlayerIndex(actorId);
+  if(right === null){
+    logPush(`CPU: P${actorId+1} 噛み → 対象なし（生存者1人）なのでスキップ`);
+    advancePhase();
+    return;
+  }
+
+  const tgt = game.players[right];
+
+  const candAll = getAliveSlotIndices(tgt).map(i=>({
+    slotIndex:i,
+    slot:tgt.slots[i],
+    mark:getMark(tgt.slots[i]),
+    biteFail:isRecentBiteFail(tgt.slots[i], game.biteNo+1, 2)
+  }));
+
+  const candPublic = candAll.filter(x => isPublicSeerSlot(right, x.slotIndex));
+  const candNonPublic = candAll.filter(x => !isPublicSeerSlot(right, x.slotIndex));
+
+  const actorVillageRoles = villageRolesTotal(actor);
+  const actorOnlySeer =
+    (actorVillageRoles === 1) &&
+    hasRoleAlive(actor, ROLES.SEER) &&
+    !hasRoleAlive(actor, ROLES.GUARD) &&
+    !hasRoleAlive(actor, ROLES.MEDIUM);
+
+  const anyPublicSeerExists =
+    Object.values(game.publicSeerReveal).some(v => typeof v === "number");
+
+  // ============================================
+  // ★ 特例：公開占いが存在 && 占いしか残っていない
+  // ============================================
+  if(anyPublicSeerExists && actorOnlySeer && candPublic.length){
+    const pick = pickRandom(candPublic);
+    logPush(`CPU: P${actorId+1} 噛み → 特例：公開占いを最優先`);
+    resolveBite(actorId, right, pick.slotIndex);
+    return;
+  }
+
+  // ============================================
+  // 通常優先順位（最新版）
+  // 白 > グレー = 噛めなかった白 > 黒
+  // ============================================
+
+  function biteScore(c){
+
+    // 白（噛めていない白）
+    if(c.mark === MARK.WHITE && !c.biteFail) return 100;
+
+    // グレー
+    if(c.mark === MARK.GRAY) return 80;
+
+    // 噛めなかった白（最近不発）
+    if(c.mark === MARK.WHITE && c.biteFail) return 80;
+
+    // 黒
+    if(c.mark === MARK.BLACK) return 50;
+
+    return 0;
+  }
+
+  let best = null;
+  let bestScore = -1;
+
+  for(const c of candAll){
+    const score = biteScore(c) + Math.random()*0.01;
+    if(score > bestScore){
+      bestScore = score;
+      best = c;
+    }
+  }
+
+  logPush(`CPU: P${actorId+1} 噛み → 通常優先で選択`);
+  resolveBite(actorId, right, best.slotIndex);
+  return;
+}
+}
+
+/* ============
+   自動進行（表示遅延つき）
+============ */
+function isHumanTurn(){
+  if(!CONFIG.autoPlayers) return true;
+  return game.turn === CONFIG.humanPlayerId || game.over || game.phase === PHASES.END;
+}
+
+function phaseNameForActing(){
+  if(game.phase === PHASES.ROUND0_MAD) return "狂人";
+  if(game.phase === PHASES.ROUND0_GUARD) return "狩人";
+  if(game.phase === PHASES.SEER) return "占い";
+  if(game.phase === PHASES.LYNCH) return "吊り";
+  if(game.phase === PHASES.MAD) return "狂人";
+  if(game.phase === PHASES.GUARD) return "狩人";
+  if(game.phase === PHASES.BITE) return "噛み";
+  return "-";
+}
+function getActingText(){
+  const actorId = game.turn;
+  return `P${actorId+1}が行動中…（${phaseNameForActing()}）`;
+}
+
+async function runAutoUntilHumanTurnAsync(){
+  if(!CONFIG.autoPlayers) return;
+
+  let steps = 0;
+  while(!game.over && game.phase !== PHASES.END && !isHumanTurn()){
+    steps += 1;
+    if(steps > CONFIG.autoSafetySteps){
+      logPush(`自動停止: safetySteps超過（無限ループ防止）`);
+      break;
+    }
+
+    render();
+
+    if(CONFIG.effectsEnabled){
+      await sleepMs(calcActionDelayMs());
+    }
+
+    cpuDoOneImmediate();
+
+    render();
+
+    if(CONFIG.effectsEnabled){
+      await sleepMs(120);
+    }
+  }
+}
+
+/* ============
+   描画
+============ */
+function safePLabel(idOrNull){
+  return (idOrNull === null) ? "-" : `P${idOrNull+1}`;
+}
+
+function renderPublicSeer(){
+  const el = document.getElementById("stock");
+  if(!el) return;
+
+  const lines = [];
+  lines.push("【公開占い（★占）】");
+  const any = game.publicSeerReveal.some(v => typeof v === "number");
+
+  if(!any){
+    lines.push("（まだ公開占いはありません）");
+  }else{
+    for(let pid=0; pid<game.players.length; pid++){
+      const si = game.publicSeerReveal[pid];
+      if(typeof si === "number"){
+        lines.push(`P${pid+1}: S${si+1} が占い（公開）`);
+      }
+    }
+  }
+  el.textContent = lines.join("\n");
+}
+
+function renderMedium(viewAsId){
+  const viewAs = game.players[viewAsId];
+  const mi = document.getElementById("mediumInfo");
+  const miPinned = document.getElementById("mediumInfoPinned");
+
+  const mediumAlive = hasRoleAlive(viewAs, ROLES.MEDIUM);
+
+  let wolfArr = null;
+  if(mediumAlive){
+    wolfArr = game.players.map(p=>wolfCount(p));
+  } else if(viewAs.mediumWolfSnapshot){
+    wolfArr = viewAs.mediumWolfSnapshot;
+  }
+
+  const htmlOn = (wolfArr) ? `
+    <div><b>霊媒表示（View as が霊媒保持のとき）</b></div>
+    <div class="mini">${wolfArr.map((c,i)=>`P${i+1}: 人狼${c}`).join(" / ")}</div>
+    ${mediumAlive ? "" : `<div class="mini">（霊媒死亡後の固定表示）</div>`}
+  ` : `<div class="mini">（霊媒表示なし）</div>`;
+
+  if(mi) mi.innerHTML = htmlOn;
+  if(miPinned) miPinned.innerHTML = htmlOn;
+}
+
+function render(){
+  const viewSel = document.getElementById("viewAs");
+  if(viewSel && viewSel.options.length === 0){
+    for(let i=0;i<4;i++){
+      const opt = document.createElement("option");
+      opt.value = String(i);
+      opt.textContent = `P${i+1}`;
+      viewSel.appendChild(opt);
+    }
+  }
+  const viewAsId = Number((viewSel && viewSel.value) ? viewSel.value : "0");
+
+  const actorId = game.turn;
+  const actor = game.players[actorId];
+  const left = leftPlayerIndex(actorId);
+  const right = rightPlayerIndex(actorId);
+
+  const statusEl = document.getElementById("status");
+  if(statusEl){
+    statusEl.innerHTML = `
+      <div class="big"><b>フェーズ</b>: ${game.phase}</div>
+      <div><b>手番</b>: P${actorId+1} ${actor.alive ? "" : '<span class="danger">(リタイヤ)</span>'}
+        ${CONFIG.autoPlayers ? `<span class="badge">自動: P2〜P4</span>` : ""}
+      </div>
+      <div class="mini">左: ${safePLabel(left)} ／ 右: ${safePLabel(right)}</div>
+      ${game.phase === PHASES.END ? `<div class="danger" style="margin-top:6px;">勝者: ${game.winners.map(id=>`P${id+1}`).join(", ")}</div>` : ``}
+    `;
+  }
+
+  const pb = document.getElementById("phaseBarInner");
+  if(pb){
+    const retired = actor.alive ? "" : "（リタイヤ）";
+    const acting = (!game.over && !isHumanTurn()) ? getActingText() : "";
+    pb.innerHTML = `
+      <div class="phaseBarInnerRow">
+        <span class="phasePill"><span class="phaseStrong">フェーズ</span>: ${game.phase}</span>
+        <span class="phasePill"><span class="phaseStrong">手番</span>: P${actorId+1}${retired}</span>
+        <span class="phasePill">左: ${safePLabel(left)}</span>
+        <span class="phasePill">右: ${safePLabel(right)}</span>
+        <button id="btnAutoOne2" class="btn">タイムアウト（今の手番）</button>
+        <button id="btnAbsentOk2" class="btn">不在→OK</button>
+        ${game.phase === PHASES.END ? `<span class="phasePill danger">勝者: ${game.winners.map(id=>`P${id+1}`).join(", ")}</span>` : ``}
+      </div>
+
+      <div class="actingLine">
+        <div class="actingLeft">
+          <span class="actingTag">${acting ? acting : "あなたの操作待ち"}</span>
+          <span class="actingSmall">${CONFIG.effectsEnabled ? "演出ON" : "演出OFF"}</span>
+        </div>
+        <button id="btnFastForward2" class="btn">>></button>
+      </div>
+
+      <div id="mediumInfoPinned" class="mini" style="margin-top:8px;"></div>
+    `;
+
+    const b1 = document.getElementById("btnAutoOne2");
+    if(b1){
+      b1.disabled = game.over;
+      b1.onclick = async ()=>{
+        if(game.over) return;
+        if(CONFIG.effectsEnabled) await sleepMs(calcActionDelayMs());
+        cpuDoOneImmediate();
+        await runAutoUntilHumanTurnAsync();
+        render();
+      };
+    }
+
+    const b2 = document.getElementById("btnFastForward2");
+    if(b2){
+      b2.onclick = ()=>{ fastForward(); render(); };
+    }
+
+    const b3 = document.getElementById("btnAbsentOk2");
+    if(b3){
+      b3.disabled = !canAbsentOk();
+      b3.onclick = async ()=>{
+        doAbsentOk();
+        await renderAndAutoAsync();
+      };
+    }
+  }
+
+  const absentBtn = document.getElementById("btnAbsentOk");
+  if(absentBtn) absentBtn.disabled = !canAbsentOk();
+
+  renderMedium(viewAsId);
+  renderPublicSeer();
+
+  const logEl = document.getElementById("log");
+  if(logEl) logEl.textContent = game.log.join("\n");
+
+  const playersDiv = document.getElementById("players");
+  playersDiv.innerHTML = "";
+
+  const actorId2 = game.turn;
+  const actor2 = game.players[actorId2];
+  const left2 = leftPlayerIndex(actorId2);
+  const right2 = rightPlayerIndex(actorId2);
+
+  const seerAbsentNow = (game.phase === PHASES.SEER && !hasRoleAlive(actor2, ROLES.SEER));
+  const madAbsentNow  = (game.phase === PHASES.MAD  && !hasRoleAlive(actor2, ROLES.MAD));
+  const madLockedNow  = (game.phase === PHASES.MAD  && hasRoleAlive(actor2, ROLES.MAD) && actor2.madUsed);
+  const grdAbsentNow  = (game.phase === PHASES.GUARD&& !hasRoleAlive(actor2, ROLES.GUARD));
+
+  const r0MadAbsentNow= (game.phase === PHASES.ROUND0_MAD && !hasRoleAlive(actor2, ROLES.MAD));
+  const r0MadLockedNow= (game.phase === PHASES.ROUND0_MAD && hasRoleAlive(actor2, ROLES.MAD) && actor2.madUsed);
+  const r0GrdAbsentNow= (game.phase === PHASES.ROUND0_GUARD && !hasRoleAlive(actor2, ROLES.GUARD));
+
+  for(const pl of game.players){
+    const pDiv = document.createElement("div");
+    pDiv.className = "player" + (pl.alive ? "" : " dead");
+
+    const villageTotal = villageRolesTotal(pl);
+    const isSelf = (pl.id === viewAsId);
+
+    const showInvert = isSelf ? (pl.invertIndex===null ? "-" : `S${pl.invertIndex+1}`) : "-";
+    const showGuard  = isSelf ? (pl.guardIndex===null ? "-" : `S${pl.guardIndex+1}`) : "-";
+
+    let showMadState = "-";
+    if(isSelf){
+      if(!hasRoleAlive(pl, ROLES.MAD)) showMadState = "DEAD";
+      else if(pl.madUsed) showMadState = "発動済";
+      else showMadState = "未発動";
+    }
+
+    const head = document.createElement("div");
+    head.innerHTML = `
+      <div>
+        <b>P${pl.id+1}</b>
+        ${pl.alive ? "" : `<span class="badge">リタイヤ</span>`}
+        <span class="badge">村役職残数:${villageTotal}</span>
+      </div>
+      <div class="mini">
+        狂人:${showMadState} ／ 反転:${showInvert} ／ 守り:${showGuard}
+      </div>
+    `;
+    pDiv.appendChild(head);
+
+    const slotsDiv = document.createElement("div");
+    slotsDiv.className = "slots";
+
+    for(let i=0;i<pl.slots.length;i++){
+      const s = pl.slots[i];
+      const b = document.createElement("div");
+      b.className = "slot" + (s.dead ? " deadslot" : "");
+      b.innerHTML = `<div>S${i+1}</div>`;
+
+      // View as 本人だけ役職表示
+      if(pl.id === viewAsId && !s.dead){
+        const role = document.createElement("div");
+        role.className = "role";
+        role.textContent = s.role;
+        b.appendChild(role);
+      }
+
+      // 占い結果（全体公開）
+      if(s.publicSeer && s.publicSeer.last){
+        const mark = document.createElement("div");
+        mark.style.fontSize = "11px";
+        mark.style.fontWeight = "bold";
+        mark.style.marginTop = "2px";
+        mark.style.color = (s.publicSeer.last === "黒") ? "#ff6666" : "#66aaff";
+        const chgTxt = s.publicSeer.changedLast ? "（変化）" : "";
+        mark.textContent = `占:${s.publicSeer.last}${chgTxt}`;
+        b.appendChild(mark);
+      }
+
+      // ★占（全体公開）
+      if(isPublicSeerSlot(pl.id, i)){
+        const row = document.createElement("div");
+        row.className = "tagRow";
+        const sp = document.createElement("span");
+        sp.className = "tag tagSeerOpen";
+        sp.textContent = "★占";
+        row.appendChild(sp);
+        b.appendChild(row);
+      }
+
+      // 選択可能ハイライト（P1手番のみ）
+      if(!s.dead && !game.over && actorId2 === CONFIG.humanPlayerId){
+        let pick = false;
+        let hintpick = false;
+
+        if(game.phase === PHASES.ROUND0_MAD && pl.id === actorId2){
+          if(r0MadAbsentNow || r0MadLockedNow) hintpick = true;
+          else pick = true;
+        }
+
+        if(game.phase === PHASES.ROUND0_GUARD && pl.id === actorId2){
+          if(r0GrdAbsentNow) hintpick = true;
+          else if(!(s.role === ROLES.GUARD || s.role === ROLES.WOLF)) pick = true;
+        }
+
+        if(game.phase === PHASES.SEER && left2 !== null && pl.id === left2){
+          if(seerAbsentNow) hintpick = true; else pick = true;
+        }
+
+        if(game.phase === PHASES.LYNCH && left2 !== null && pl.id === left2){
+          pick = true;
+        }
+
+        if(game.phase === PHASES.MAD && pl.id === actorId2){
+          if(madAbsentNow || madLockedNow) hintpick = true;
+          else pick = true;
+        }
+
+        if(game.phase === PHASES.GUARD && pl.id === actorId2){
+          if(grdAbsentNow) hintpick = true;
+          else if(!(s.role === ROLES.GUARD || s.role === ROLES.WOLF)) pick = true;
+        }
+
+        if(game.phase === PHASES.BITE && right2 !== null && pl.id === right2){
+          pick = true;
+        }
+
+        if(pick) b.classList.add("pick");
+        else if(hintpick) b.classList.add("hintpick");
+      }
+
+      // View as 本人だけタグ表示（非公開情報）
+      if(pl.id === viewAsId){
+        const tags = [];
+        if(pl.invertIndex === i) tags.push({ cls:"tag tagMad", text:"反転" });
+        if(pl.guardIndex === i) tags.push({ cls:"tag tagGuard", text:"守り" });
+        if(tags.length){
+          const row = document.createElement("div");
+          row.className = "tagRow";
+          for(const t of tags){
+            const sp = document.createElement("span");
+            sp.className = t.cls;
+            sp.textContent = t.text;
+            row.appendChild(sp);
+          }
+          b.appendChild(row);
+        }
+      }
+
+      if(!s.dead){
+        b.addEventListener("click", ()=>clickSlot(pl.id, i));
+      }
+
+      slotsDiv.appendChild(b);
+    }
+
+    pDiv.appendChild(slotsDiv);
+    playersDiv.appendChild(pDiv);
+  }
+}
+
+/* ============
+   操作
+============ */
+async function renderAndAutoAsync(){
+  render();
+  await runAutoUntilHumanTurnAsync();
+  render();
+}
+
+async function clickSlot(playerId, slotIndex){
+  if(game.over) return;
+
+  const actorId = game.turn;
+  if(CONFIG.autoPlayers && actorId !== CONFIG.humanPlayerId) return;
+
+  const pl = game.players[playerId];
+  const slot = pl.slots[slotIndex];
+  if(slot.dead) return;
+
+  if(game.phase === PHASES.ROUND0_MAD){
+    if(playerId !== actorId) return;
+    resolveMadPick(actorId, slotIndex);
+    await renderAndAutoAsync();
+    return;
+  }
+
+  if(game.phase === PHASES.ROUND0_GUARD){
+    if(playerId !== actorId) return;
+    resolveGuard(actorId, slotIndex);
+    await renderAndAutoAsync();
+    return;
+  }
+
+  if(game.phase === PHASES.SEER){
+    const left = leftPlayerIndex(actorId);
+    if(left === null){
+      resolveSeer(actorId, null, 0);
+      await renderAndAutoAsync();
+      return;
+    }
+    if(playerId !== left) return;
+    resolveSeer(actorId, left, slotIndex);
+    await renderAndAutoAsync();
+    return;
+  }
+
+  if(game.phase === PHASES.LYNCH){
+    const left = leftPlayerIndex(actorId);
+    if(left === null){
+      resolveLynch(actorId, null, 0);
+      await renderAndAutoAsync();
+      return;
+    }
+    if(playerId !== left) return;
+    resolveLynch(actorId, left, slotIndex);
+    await renderAndAutoAsync();
+    return;
+  }
+
+  if(game.phase === PHASES.MAD){
+    if(playerId !== actorId) return;
+
+    const actor = game.players[actorId];
+    if(!hasRoleAlive(actor, ROLES.MAD)){
+      logPush(`P${actorId+1} 狂人不在 → OK（スキップ）`);
+      advancePhase();
+      await renderAndAutoAsync();
+      return;
+    }
+    if(actor.madUsed){
+      logPush(`P${actorId+1} 狂人設定 → 発動済み（1回きり）のためスキップのみ`);
+      advancePhase();
+      await renderAndAutoAsync();
+      return;
+    }
+
+    resolveMadPick(actorId, slotIndex);
+    await renderAndAutoAsync();
+    return;
+  }
+
+  if(game.phase === PHASES.GUARD){
+    if(playerId !== actorId) return;
+    resolveGuard(actorId, slotIndex);
+    await renderAndAutoAsync();
+    return;
+  }
+
+  if(game.phase === PHASES.BITE){
+    const right = rightPlayerIndex(actorId);
+    if(right === null){
+      resolveBite(actorId, null, 0);
+      await renderAndAutoAsync();
+      return;
+    }
+    if(playerId !== right) return;
+    resolveBite(actorId, right, slotIndex);
+    await renderAndAutoAsync();
+    return;
+  }
+}
+
+/* ============
+   bind / init
+============ */
+function bind(){
+  const chk = document.getElementById("chkEffects");
+  if(chk){
+    chk.checked = CONFIG.effectsEnabled;
+    chk.addEventListener("change", ()=>{
+      CONFIG.effectsEnabled = !!chk.checked;
+      if(!CONFIG.effectsEnabled) fastForward();
+      render();
+    });
+  }
+
+  const ff = document.getElementById("btnFastForward");
+  if(ff){
+    ff.addEventListener("click", ()=>{
+      fastForward();
+      render();
+    });
+  }
+
+  const lobbySkip = document.getElementById("btnLobbySkip");
+  if(lobbySkip){
+    lobbySkip.addEventListener("click", ()=>{
+      fastForward();
+      showLobby(false);
+    });
+  }
+
+  document.getElementById("btnNew").addEventListener("click", async ()=>{
+    fastForward();
+    game = makeNewGame(null);
+    baseDeal = game.players.map(p=>p.slots.map(s=>s.role));
+    logPush("新規ゲーム開始（配り直し）");
+    await playLobbySequence();
+    await renderAndAutoAsync();
+  });
+
+  document.getElementById("btnReset").addEventListener("click", async ()=>{
+    fastForward();
+    if(!baseDeal){
+      game = makeNewGame(null);
+      baseDeal = game.players.map(p=>p.slots.map(s=>s.role));
+      logPush("新規ゲーム開始（配り直し）");
+    } else {
+      game = makeNewGame(baseDeal);
+      logPush("同じ配りでリセット");
+    }
+    await playLobbySequence();
+    await renderAndAutoAsync();
+  });
+
+  document.getElementById("btnAutoOne").addEventListener("click", async ()=>{
+    if(game.over) return;
+    if(CONFIG.effectsEnabled) await sleepMs(calcActionDelayMs());
+    cpuDoOneImmediate();
+    await renderAndAutoAsync();
+  });
+
+  document.getElementById("btnAbsentOk").addEventListener("click", async ()=>{
+    doAbsentOk();
+    await renderAndAutoAsync();
+  });
+
+  const viewAs = document.getElementById("viewAs");
+  if(viewAs){
+    viewAs.addEventListener("change", ()=>{ render(); });
+  }
+}
+
+async function init(){
+  game = makeNewGame(null);
+  baseDeal = game.players.map(p=>p.slots.map(s=>s.role));
+  logPush("準備完了：新規ゲーム or リセットで開始");
+  bind();
+
+  try{
+    if(window.matchMedia && window.matchMedia("(max-width: 760px)").matches){
+      const d = document.getElementById("topDetails");
+      if(d) d.removeAttribute("open");
+    }
+  }catch(e){}
+
+  await renderAndAutoAsync();
+}
+
+init();
+  </script>
+</body>
+</html>
