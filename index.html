@@ -103,7 +103,11 @@
     <h3>全体ログ（最終アクションまで保持）</h3>
     <div id="log" class="log"></div>
   </div>
+/* コンフィグ */
   <script src="js/config.js"></script>
+/* ユーティリティ */
+  <script src="js/utils.js"></script>
+
   <script>
 /* ============
    エラー表示
@@ -116,25 +120,6 @@ window.onerror = (msg, src, line, col) => {
 /* ============
    定義
 ============ */
-
-function shuffle(arr, rnd=Math.random) {
-  const a = arr.slice();
-  for (let i=a.length-1;i>0;i--) {
-    const j = Math.floor(rnd()*(i+1));
-    [a[i],a[j]] = [a[j],a[i]];
-  }
-  return a;
-}
-function nowStamp(){
-  const d=new Date();
-  const hh=String(d.getHours()).padStart(2,"0");
-  const mm=String(d.getMinutes()).padStart(2,"0");
-  const ss=String(d.getSeconds()).padStart(2,"0");
-  return `${hh}:${mm}:${ss}`;
-}
-function randInt(min, max){
-  return Math.floor(Math.random()*(max-min+1)) + min;
-}
 
 /* ============
    グローバル
@@ -1079,9 +1064,6 @@ async function runAutoUntilHumanTurnAsync(){
 /* ============
    描画
 ============ */
-function safePLabel(idOrNull){
-  return (idOrNull === null) ? "-" : `P${idOrNull+1}`;
-}
 
 function renderPublicSeer(){
   const el = document.getElementById("stock");
