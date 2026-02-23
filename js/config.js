@@ -15,14 +15,14 @@ export const ROLES = {
 };
 
 export const PHASES = {
-  ROUND0_MAD: "ROUND0_MAD",
-  ROUND0_GUARD: "ROUND0_GUARD",
-  SEER: "SEER",
-  LYNCH: "LYNCH",
-  MAD: "MAD",
-  GUARD: "GUARD",
-  BITE: "BITE",
-  END: "END",
+  ROUND0_MAD: "ROUND0：狂人",
+  ROUND0_GUARD: "ROUND0:狩人",
+  SEER: "占い",
+  LYNCH: "吊り",
+  MAD: "狂人",
+  GUARD: "狩人",
+  BITE: "噛み",
+  END: "終了",
 };
 
 export const MARK = {
