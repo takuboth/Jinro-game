@@ -1,0 +1,129 @@
+body { font-family: system-ui, -apple-system, "Segoe UI", sans-serif; margin: 12px; }
+    .row { display:flex; gap:12px; flex-wrap:wrap; align-items:flex-start; }
+    .panel { border:1px solid #ccc; border-radius:8px; padding:10px; background:#fff; }
+    .panel h3 { margin:0 0 8px 0; font-size:16px; }
+
+    .players { display:grid; grid-template-columns: repeat(2, minmax(320px, 1fr)); gap:10px; }
+    .player { border:1px solid #bbb; border-radius:8px; padding:10px; background:#fff; }
+    .player.dead { opacity:0.55; }
+
+    .slots { display:grid; grid-template-columns: repeat(9, 1fr); gap:6px; margin-top:8px; }
+    .slot{
+      border:1px solid #888; border-radius:6px; padding:8px 4px;
+      text-align:center; cursor:pointer; user-select:none;
+      background:#fff;
+      font-size:12px; line-height:1.25;
+      min-height:72px;
+      display:flex; flex-direction:column; justify-content:center;
+      position:relative;
+    }
+    .slot .role{ font-size:11px; margin-top:2px; opacity:0.85; }
+    .slot.deadslot{
+      background:#222; color:#ddd; border-color:#222; cursor:not-allowed;
+    }
+    .slot.deadslot .role{ display:none; }
+
+    .slot.pick{ outline:3px solid #2a7; }
+    .slot.hintpick{ outline:3px dashed #777; }
+
+    .badge{ display:inline-block; padding:2px 6px; border:1px solid #999; border-radius:999px; font-size:12px; margin-left:6px; }
+    .btn{ padding:8px 10px; border:1px solid #888; border-radius:8px; background:#fff; cursor:pointer; }
+    .btn:disabled{ opacity:0.5; cursor:not-allowed; }
+    .mini{ font-size:12px; color:#333; }
+
+    .log, .stock{
+      white-space:pre-wrap;
+      font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+      font-size:12px;
+      overflow:auto;
+    }
+    .log{ max-height:320px; }
+    .stock{ max-height:240px; }
+
+    select{ padding:6px 8px; border-radius:8px; }
+    .danger{ color:#b00; font-weight:700; }
+    .hint{ color:#0a5; font-weight:700; }
+    .big{ font-size:14px; font-weight:700; }
+
+    .tagRow { display:flex; justify-content:center; gap:4px; margin-top:4px; }
+    .tag { display:inline-block; font-size:10px; padding:1px 6px; border-radius:999px; border:1px solid #999; }
+    .tagMad { border-color:#a72; }
+    .tagGuard { border-color:#27a; }
+    .tagSeerOpen { border-color:#777; }
+
+    details.summaryBox > summary{
+      cursor:pointer;
+      user-select:none;
+      font-weight:700;
+      padding:2px 0;
+      list-style:none;
+    }
+    details.summaryBox > summary::-webkit-details-marker{ display:none; }
+
+    .phaseBar{ padding:10px; }
+    .phaseBarInnerRow{ display:flex; gap:8px; flex-wrap:wrap; align-items:center; }
+    .phasePill{ display:inline-block; padding:4px 10px; border:1px solid #999; border-radius:999px; font-size:12px; background:#fff; }
+    .phaseStrong{ font-weight:700; }
+
+    .actingLine{
+      margin-top:8px;
+      padding:8px 10px;
+      border-radius:10px;
+      border:1px dashed #aaa;
+      background:#fafafa;
+      font-size:12px;
+      display:flex;
+      align-items:center;
+      justify-content:space-between;
+      gap:10px;
+    }
+    .actingLeft{ display:flex; gap:10px; flex-wrap:wrap; align-items:center; }
+    .actingTag{ font-weight:700; color:#0a5; }
+    .actingSmall{ color:#444; }
+    .toggleRow{ display:flex; gap:10px; align-items:center; flex-wrap:wrap; }
+
+    .overlay{
+      position:fixed;
+      inset:0;
+      background:rgba(0,0,0,0.55);
+      display:none;
+      align-items:center;
+      justify-content:center;
+      z-index:9999;
+      padding:12px;
+    }
+    .overlay.show{ display:flex; }
+    .overlayCard{
+      width:min(720px, 96vw);
+      background:#fff;
+      border-radius:14px;
+      border:1px solid #ccc;
+      padding:14px;
+      box-shadow:0 10px 30px rgba(0,0,0,0.25);
+    }
+    .overlayTitle{ font-size:16px; font-weight:800; margin:0 0 10px 0; }
+    .overlayStatus{ display:flex; gap:8px; flex-wrap:wrap; margin-bottom:10px; }
+    .overlayPill{ padding:6px 10px; border:1px solid #999; border-radius:999px; font-size:12px; background:#fff; }
+    .overlayLog{
+      border:1px solid #ddd;
+      border-radius:12px;
+      padding:10px;
+      background:#fafafa;
+      font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+      font-size:12px;
+      white-space:pre-wrap;
+      max-height:280px;
+      overflow:auto;
+    }
+    .overlayFooter{ margin-top:10px; display:flex; justify-content:flex-end; gap:10px; align-items:center; }
+
+    @media (max-width: 760px){
+      .players{ grid-template-columns: 1fr; }
+      .phaseBar{
+        position: sticky;
+        top: 0;
+        z-index: 50;
+        background:#fff;
+      }
+      body{ margin: 10px; }
+    }
