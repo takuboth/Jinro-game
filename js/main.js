@@ -901,6 +901,8 @@ function render(){
         <span class="phasePill">右: ${safePLabel(right)}</span>
         <button id="btnAutoOne2" class="btn">タイムアウト（今の手番）</button>
         <button id="btnAbsentOk2" class="btn">不在→OK</button>
+        <button id="btnNew2" class="btn">新規ゲーム</button>
+　　      <button id="btnReset2" class="btn">同じ配りでリセット</button>
         ${game.phase === PHASES.END ? `<span class="phasePill danger">勝者: ${game.winners.map(id=>`P${id+1}`).join(", ")}</span>` : ``}
       </div>
 
@@ -940,6 +942,36 @@ function render(){
         await renderAndAutoAsync();
       };
     }
+    const bNew = document.getElementById("btnNew2");
+    if(bNew){
+  bNew.disabled = false;
+  bNew.onclick = async ()=>{
+    fastForward();
+    game = makeNewGame(null);
+    baseDeal = game.players.map(p=>p.slots.map(s=>s.role));
+    logPush("新規ゲーム開始（配り直し）");
+    await playLobbySequence();
+    await renderAndAutoAsync();
+  };
+}
+
+const bReset = document.getElementById("btnReset2");
+if(bReset){
+  bReset.disabled = false;
+  bReset.onclick = async ()=>{
+    fastForward();
+    if(!baseDeal){
+      game = makeNewGame(null);
+      baseDeal = game.players.map(p=>p.slots.map(s=>s.role));
+      logPush("新規ゲーム開始（配り直し）");
+    } else {
+      game = makeNewGame(baseDeal);
+      logPush("同じ配りでリセット");
+    }
+    await playLobbySequence();
+    await renderAndAutoAsync();
+  };
+}
   }
 
   const absentBtn = document.getElementById("btnAbsentOk");
