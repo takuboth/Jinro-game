@@ -1,0 +1,110 @@
+<!doctype html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>人狼カードゲーム MVP（仕様検証用）</title>
+  <link rel="stylesheet" href="./css/style.css?v=1" />
+</head>
+
+<body>
+  <!-- ロビー演出 -->
+  <div id="lobbyOverlay" class="overlay" aria-hidden="true">
+    <div class="overlayCard">
+      <div class="overlayTitle" id="lobbyTitle">ロビー</div>
+      <div class="overlayStatus" id="lobbyStatus"></div>
+      <div class="overlayLog" id="lobbyLog"></div>
+      <div class="overlayFooter">
+        <div class="mini" id="lobbyHint">演出中…</div>
+        <button id="btnLobbySkip" class="btn">>> スキップ</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 上部：折りたたみ -->
+  <details id="topDetails" class="summaryBox" open>
+    <summary>操作・詳細（タップで開閉）</summary>
+
+    <div class="panel" style="margin-top:10px;">
+      <h3>操作</h3>
+
+      <div class="toggleRow" style="margin-bottom:10px;">
+        <label class="mini" style="display:flex;gap:8px;align-items:center;">
+          <input id="chkEffects" type="checkbox" checked />
+          疑似オンライン演出（遅延/ロビー/行動中表示）
+        </label>
+        <button id="btnFastForward" class="btn">>>（演出スキップ）</button>
+        <span class="mini">※ロジックは即決、表示だけ遅延</span>
+      </div>
+
+      <div class="row">
+        <button id="btnNew" class="btn">新規ゲーム</button>
+        <button id="btnReset" class="btn">同じ配りでリセット</button>
+        <button id="btnAutoOne" class="btn">タイムアウト（今の手番だけ）</button>
+      </div>
+
+      <div style="margin-top:10px;" class="row">
+        <div class="panel" style="flex:1; min-width:320px;">
+          <h3>現在状態（詳細）</h3>
+          <div id="status"></div>
+
+          <div class="mini" style="margin-top:8px;">
+            ・占いマーク（白/黒）は最新結果で上書き、スロットに残る（全体公開）<br/>
+            ・黒が出た占いは「★占」として公開（反転黒でも公開）<br/>
+            ・CPUは占いマークを真実として扱い、反転の可能性は推理しない<br/>
+            ・行動順：①占い→②吊り→③狂人→④狩人→⑤噛み（Round0は狂人→狩人）<br/>
+            ・吊り後/噛み後：人狼0判定→リタイヤ→勝利判定<br/>
+            ・噛み不発理由（ガード/人狼）は非公開（CPU内部タグのみ）<br/>
+            ・生存者1人なら left/right が null になるので、占い/吊り/噛みは自動スキップ（落ち防止）<br/>
+            ・狂人の反転は1回きり：発動後は選択不可（スキップのみ）<br/>
+            ・役職がいない場合だけ「不在→OK」でスキップ可能
+          </div>
+        </div>
+
+        <div class="panel" style="min-width:320px;">
+          <h3>公開占い（★占）</h3>
+          <div class="mini">黒を出した占いの「位置」だけを表示（誰から見ても同じ）</div>
+          <div id="stock" class="stock" style="margin-top:8px;"></div>
+        </div>
+
+        <div class="panel" style="min-width:280px;">
+          <h3>表示視点（デバッグ）</h3>
+          <div class="row" style="align-items:center;">
+            <div>View as:</div>
+            <select id="viewAs"></select>
+          </div>
+
+          <div id="mediumInfo" class="mini" style="margin-top:10px;"></div>
+
+          <div class="panel" style="margin-top:10px;">
+            <div class="row" style="align-items:center;">
+              <div><b>役職不在時</b></div>
+              <button id="btnAbsentOk" class="btn">不在→OK（スキップ）</button>
+            </div>
+            <div class="mini" style="margin-top:4px;">（占い/狂人/狩人が“いない”時のみ有効）</div>
+          </div>
+
+        </div>
+      </div>
+    </div>
+  </details>
+
+  <!-- プレイヤー直前：フェーズ表示（常に見える）＋霊媒ピン留め（折りたたみ時も見える） -->
+  <div class="panel phaseBar" style="margin-top:12px;">
+    <div id="phaseBarInner"></div>
+  </div>
+
+  <div class="panel" style="margin-top:12px;">
+    <h3>プレイヤー</h3>
+    <div id="players" class="players"></div>
+  </div>
+
+  <div class="panel" style="margin-top:12px;">
+    <h3>全体ログ（最終アクションまで保持）</h3>
+    <div id="log" class="log"></div>
+  </div>
+
+  <!-- 重要：ESMで読み込む -->
+  <script type="module" src="./js/main.js?v=1"></script>
+</body>
+</html>
