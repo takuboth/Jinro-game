@@ -150,3 +150,81 @@ export function cpuPickMadInvertIndexByWolfStock(actor) {
 
   return null;
 }
+
+/* ============
+   狩人の守り（最新版ルール）
+
+   優先順位
+   通常（生存プレイヤー3人以上）:
+     占い（未公開）＞狂人（未発動）＞霊媒＞狂人（発動済み）＝村人＞占い（公開）
+   タイマン（生存プレイヤー2人）:
+     占い（公開）＞占い（未公開）＞狂人（未発動）＞霊媒＞狂人（発動済み）＝村人
+============ */
+export function cpuPickGuardIndex(game, actor) {
+  const meId = actor.id;
+
+  // 生存プレイヤー数（= 少なくとも1スロット生存している人数）
+  let alivePlayers = 0;
+  for (const p of game.players) {
+    if (p && p.slots && p.slots.some(s => !s.dead)) alivePlayers += 1;
+  }
+
+  // 守れる：生存 かつ 狩人/人狼以外
+  const guardable = getGuardableSlotIndices(actor);
+  if (!guardable.length) return null;
+
+  // 自分の公開占いスロット（★占）
+  const publicSeerIdx =
+    (typeof game.publicSeerReveal?.[meId] === "number")
+      ? game.publicSeerReveal[meId]
+      : null;
+
+  // カテゴリ分け
+  const buckets = {
+    SEER_PUBLIC: [],
+    SEER_PRIVATE: [],
+    MAD_UNUSED: [],
+    MEDIUM: [],
+    VILLAGER_OR_MAD_USED: [],
+  };
+
+  for (const idx of guardable) {
+    const s = actor.slots[idx];
+
+    if (s.role === ROLES.SEER) {
+      if (publicSeerIdx === idx) buckets.SEER_PUBLIC.push(idx);
+      else buckets.SEER_PRIVATE.push(idx);
+      continue;
+    }
+
+    if (s.role === ROLES.MAD) {
+      if (!actor.madUsed) buckets.MAD_UNUSED.push(idx);
+      else buckets.VILLAGER_OR_MAD_USED.push(idx); // 発動済みは村人扱い
+      continue;
+    }
+
+    if (s.role === ROLES.MEDIUM) {
+      buckets.MEDIUM.push(idx);
+      continue;
+    }
+
+    // 村人など
+    buckets.VILLAGER_OR_MAD_USED.push(idx);
+  }
+
+  const isDuel = (alivePlayers === 2);
+
+  const order = isDuel
+    ? ["SEER_PUBLIC", "SEER_PRIVATE", "MAD_UNUSED", "MEDIUM", "VILLAGER_OR_MAD_USED"]
+    : ["SEER_PRIVATE", "MAD_UNUSED", "MEDIUM", "VILLAGER_OR_MAD_USED", "SEER_PUBLIC"];
+
+  for (const k of order) {
+    if (buckets[k].length) {
+      // 同カテゴリ内は「左（slotIndexが小さい）」優先（好みでランダムに変更可）
+      buckets[k].sort((a, b) => a - b);
+      return buckets[k][0];
+    }
+  }
+
+  return null;
+}
