@@ -6,6 +6,7 @@ import {
   getMark, isRecentBiteFail, isPublicSeerSlot,
   getAliveSlotIndices, getGuardableSlotIndices,
   cpuPickMadInvertIndexByWolfStock,
+  cpuPickGuardIndex,
 } from "./utils.js";
 
 /* ============
@@ -562,11 +563,8 @@ function cpuDoOneImmediate(){
       return;
     }
     // ガード優先は utils側にある想定（あなたの最新版）
-    const pick = (typeof window.__cpuPickGuardIndex === "function")
-      ? window.__cpuPickGuardIndex(game, actor, { ROLES, MARK })
-      : null;
-    if(pick === null){
-      // フォールバック：守れる中でランダム
+    const pick = cpuPickGuardIndex(game, actor);
+   if (pick === null) {
       const cand = getGuardableSlotIndices(actor);
       const pick2 = cand.length ? pickRandom(cand) : null;
       if(pick2 === null){
@@ -670,9 +668,7 @@ function cpuDoOneImmediate(){
       advancePhase();
       return;
     }
-    const pick = (typeof window.__cpuPickGuardIndex === "function")
-      ? window.__cpuPickGuardIndex(game, actor, { ROLES, MARK })
-      : null;
+    const pick = cpuPickGuardIndex(game, actor);
 
     if(pick === null){
       const cand = getGuardableSlotIndices(actor);
