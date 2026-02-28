@@ -38,6 +38,17 @@ export function deriveViewModel(game, viewAsId){
 
   // クリック可能判定（slotごと）
   const clickable = Array.from({length:4}, ()=>Array(9).fill(false));
+    // どのプレイヤーが“対象”か（表示用）
+  const focusPlayers = new Set();
+
+  if (humanCanAct) {
+    // clickableがあるプレイヤーを対象にする
+    for (let pid=0; pid<4; pid++){
+      if (clickable[pid].some(v => v)) focusPlayers.add(pid);
+    }
+    // 何も対象が無い（スキップ可能系）なら自分だけ対象
+    if (focusPlayers.size === 0) focusPlayers.add(actorId);
+  }
   const selected  = Array.from({length:4}, ()=>Array(9).fill(false));
 
   if (humanCanAct) {
