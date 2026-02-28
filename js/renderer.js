@@ -169,14 +169,17 @@ export function buildRenderer(rootEl, onSlotClick){
         // orbs
         const orbs = orbEls[p.id][s.idx];
 
-        // 左上：守り（青）／それ以外は薄グレー
-        const guardActive = (typeof p.guardIndex === "number" && p.guardIndex === s.idx);
+        // ---- 追加：そのプレイヤーが「View as 本人」か ----
+        const isSelfView = (p.id === vm.viewAsId);
+        
+        // 左上：守り（青）※本人だけ見える
+        const guardActive = isSelfView && (typeof p.guardIndex === "number" && p.guardIndex === s.idx);
         setCore(orbs.tl, guardActive ? "guard" : "gray", guardActive);
 
-        // 右上：反転（紫）※未発動のみ表示
-        const invertActive = (!p.madUsed && typeof p.invertIndex === "number" && p.invertIndex === s.idx);
+        // 右上：反転（紫）※未発動かつ本人だけ見える
+        const invertActive = isSelfView && (!p.madUsed && typeof p.invertIndex === "number" && p.invertIndex === s.idx);
         setCore(orbs.tr, invertActive ? "invert" : "gray", invertActive);
-
+        
         // 右下：占い結果（グレー/白/黒）
         const mark = s.mark;
         if (mark === "WHITE") setCore(orbs.br, "white", true);
