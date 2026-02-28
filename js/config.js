@@ -2,7 +2,6 @@ export const CONFIG = {
   humanPlayerId: 0,
   autoPlayers: true,
   autoSafetySteps: 800,
-  effectsEnabled: true,
 };
 
 export const ROLES = {
@@ -16,7 +15,7 @@ export const ROLES = {
 
 export const PHASES = {
   ROUND0_MAD: "ROUND0：狂人",
-  ROUND0_GUARD: "ROUND0:狩人",
+  ROUND0_GUARD: "ROUND0：狩人",
   SEER: "占い",
   LYNCH: "吊り",
   MAD: "狂人",
