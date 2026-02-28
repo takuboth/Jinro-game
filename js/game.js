@@ -649,10 +649,23 @@ export function applyHumanPick(game, viewAsId, playerId, slotIndex) {
   if (game.turn !== CONFIG.humanPlayerId) return;
 
   const actorId = game.turn;
+  const actor = game.players[actorId];
 
-  // View as は表示だけ。操作は「ターンプレイヤー（P1固定）」で行う
-  // playerId/slotIndex はrenderer側で妥当な候補だけ送る前提
+  // クリックで進めたい「不在/スキップ」系はここで吸収
+  if (game.phase === PHASES.SEER && !hasRoleAlive(actor, ROLES.SEER)) {
+    resolveSeer(game, actorId, null, 0); // 対象なしでスキップ
+    return;
+  }
+  if ((game.phase === PHASES.MAD || game.phase === PHASES.ROUND0_MAD) && (!hasRoleAlive(actor, ROLES.MAD) || actor.madUsed)) {
+    resolveMadPick(game, actorId, 0); // slotIndexはダミーでOK（内部でスキップ）
+    return;
+  }
+  if ((game.phase === PHASES.GUARD || game.phase === PHASES.ROUND0_GUARD) && !hasRoleAlive(actor, ROLES.GUARD)) {
+    resolveGuard(game, actorId, 0); // slotIndexダミーでOK（内部でスキップ）
+    return;
+  }
 
+  // 通常の入力
   if (game.phase === PHASES.ROUND0_MAD) { resolveMadPick(game, actorId, slotIndex); return; }
   if (game.phase === PHASES.ROUND0_GUARD) { resolveGuard(game, actorId, slotIndex); return; }
 
