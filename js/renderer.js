@@ -137,7 +137,7 @@ export function buildRenderer(rootEl, onSlotClick){
     logText.textContent = lines.join("\n");
 
     for (const p of vm.players){
-      headerNameEls[p.id].textContent = p.name + (p.alive ? "" : "（リタイヤ）");
+      headerNameEls[p.id].textContent = p.name;
 
       // badges
       badgeMediumEls[p.id].className = `badge ${p.mediumClass}` + (p.alive ? "" : " retired");
