@@ -141,7 +141,7 @@ select{
 ============ */
 #board{
   height: calc(var(--appH) - 62px);
-  padding: 10px;
+  padding:8px;
   display:flex;
   flex-direction:column;
   gap:10px;
@@ -152,7 +152,7 @@ select{
 .players{
   display:grid;
   grid-template-columns: 1fr 1fr;
-  gap:10px;
+  gap:8px;
 }
 
 /* ============
