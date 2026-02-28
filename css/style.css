@@ -141,6 +141,7 @@ select{
   display:flex;
   flex-direction:column;
   gap:10px;
+  overflow:auto;              /* ★追加 */
 }
 
 /* 2×2 */
