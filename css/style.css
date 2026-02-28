@@ -1,129 +1,344 @@
-body { font-family: system-ui, -apple-system, "Segoe UI", sans-serif; margin: 12px; }
-    .row { display:flex; gap:12px; flex-wrap:wrap; align-items:flex-start; }
-    .panel { border:1px solid #ccc; border-radius:8px; padding:10px; background:#fff; }
-    .panel h3 { margin:0 0 8px 0; font-size:16px; }
+/* ============
+   固定キャンバス（360×780）
+============ */
+:root{
+  --appW: 360px;
+  --appH: 780px;
 
-    .players { display:grid; grid-template-columns: repeat(2, minmax(320px, 1fr)); gap:10px; }
-    .player { border:1px solid #bbb; border-radius:8px; padding:10px; background:#fff; }
-    .player.dead { opacity:0.55; }
+  /* スロット/オーブ */
+  --slotW: 48px;
+  --slotH: 72px;
+  --slotGap: 6px;
 
-    .slots { display:grid; grid-template-columns: repeat(9, 1fr); gap:6px; margin-top:8px; }
-    .slot{
-      border:1px solid #888; border-radius:6px; padding:8px 4px;
-      text-align:center; cursor:pointer; user-select:none;
-      background:#fff;
-      font-size:12px; line-height:1.25;
-      min-height:72px;
-      display:flex; flex-direction:column; justify-content:center;
-      position:relative;
-    }
-    .slot .role{ font-size:11px; margin-top:2px; opacity:0.85; }
-    .slot.deadslot{
-      background:#222; color:#ddd; border-color:#222; cursor:not-allowed;
-    }
-    .slot.deadslot .role{ display:none; }
+  --orbOuter: 16px; /* 外径 */
+  --orbCore: 12px;  /* コア径 */
+  --ringW: 2px;
 
-    .slot.pick{ outline:3px solid #2a7; }
-    .slot.hintpick{ outline:3px dashed #777; }
+  /* 色 */
+  --c-bg: #f6f7fb;
+  --c-panel: #ffffff;
+  --c-line: #d0d4dd;
+  --c-text: #222;
+  --c-sub: #666;
 
-    .badge{ display:inline-block; padding:2px 6px; border:1px solid #999; border-radius:999px; font-size:12px; margin-left:6px; }
-    .btn{ padding:8px 10px; border:1px solid #888; border-radius:8px; background:#fff; cursor:pointer; }
-    .btn:disabled{ opacity:0.5; cursor:not-allowed; }
-    .mini{ font-size:12px; color:#333; }
+  --c-gray: #9aa0a6;
+  --c-gray2:#c7cbd1;
 
-    .log, .stock{
-      white-space:pre-wrap;
-      font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
-      font-size:12px;
-      overflow:auto;
-    }
-    .log{ max-height:320px; }
-    .stock{ max-height:240px; }
+  --c-guard:#2da9ff;
+  --c-invert:#a94dff;
 
-    select{ padding:6px 8px; border-radius:8px; }
-    .danger{ color:#b00; font-weight:700; }
-    .hint{ color:#0a5; font-weight:700; }
-    .big{ font-size:14px; font-weight:700; }
+  --c-white:#f0f0f0;
+  --c-black:#111;
 
-    .tagRow { display:flex; justify-content:center; gap:4px; margin-top:4px; }
-    .tag { display:inline-block; font-size:10px; padding:1px 6px; border-radius:999px; border:1px solid #999; }
-    .tagMad { border-color:#a72; }
-    .tagGuard { border-color:#27a; }
-    .tagSeerOpen { border-color:#777; }
+  --c-gold:#d4af37;
 
-    details.summaryBox > summary{
-      cursor:pointer;
-      user-select:none;
-      font-weight:700;
-      padding:2px 0;
-      list-style:none;
-    }
-    details.summaryBox > summary::-webkit-details-marker{ display:none; }
+  --hl: rgba(45,169,255,0.35);
+}
 
-    .phaseBar{ padding:10px; }
-    .phaseBarInnerRow{ display:flex; gap:8px; flex-wrap:wrap; align-items:center; }
-    .phasePill{ display:inline-block; padding:4px 10px; border:1px solid #999; border-radius:999px; font-size:12px; background:#fff; }
-    .phaseStrong{ font-weight:700; }
+*{ box-sizing:border-box; }
+body{
+  margin:0;
+  font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
+  color:var(--c-text);
+  background: #111; /* 周囲 */
+}
 
-    .actingLine{
-      margin-top:8px;
-      padding:8px 10px;
-      border-radius:10px;
-      border:1px dashed #aaa;
-      background:#fafafa;
-      font-size:12px;
-      display:flex;
-      align-items:center;
-      justify-content:space-between;
-      gap:10px;
-    }
-    .actingLeft{ display:flex; gap:10px; flex-wrap:wrap; align-items:center; }
-    .actingTag{ font-weight:700; color:#0a5; }
-    .actingSmall{ color:#444; }
-    .toggleRow{ display:flex; gap:10px; align-items:center; flex-wrap:wrap; }
+#stage{
+  min-height:100vh;
+  display:flex;
+  align-items:flex-start;
+  justify-content:center;
+  padding: 12px;
+}
 
-    .overlay{
-      position:fixed;
-      inset:0;
-      background:rgba(0,0,0,0.55);
-      display:none;
-      align-items:center;
-      justify-content:center;
-      z-index:9999;
-      padding:12px;
-    }
-    .overlay.show{ display:flex; }
-    .overlayCard{
-      width:min(720px, 96vw);
-      background:#fff;
-      border-radius:14px;
-      border:1px solid #ccc;
-      padding:14px;
-      box-shadow:0 10px 30px rgba(0,0,0,0.25);
-    }
-    .overlayTitle{ font-size:16px; font-weight:800; margin:0 0 10px 0; }
-    .overlayStatus{ display:flex; gap:8px; flex-wrap:wrap; margin-bottom:10px; }
-    .overlayPill{ padding:6px 10px; border:1px solid #999; border-radius:999px; font-size:12px; background:#fff; }
-    .overlayLog{
-      border:1px solid #ddd;
-      border-radius:12px;
-      padding:10px;
-      background:#fafafa;
-      font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
-      font-size:12px;
-      white-space:pre-wrap;
-      max-height:280px;
-      overflow:auto;
-    }
-    .overlayFooter{ margin-top:10px; display:flex; justify-content:flex-end; gap:10px; align-items:center; }
+/* app本体は常に360×780の論理サイズ */
+#app{
+  width: var(--appW);
+  height: var(--appH);
+  background: var(--c-bg);
+  border-radius: 14px;
+  overflow:hidden;
+  box-shadow: 0 10px 30px rgba(0,0,0,0.35);
+  position:relative;
+}
 
-    @media (max-width: 760px){
-      .players{ grid-template-columns: 1fr; }
-      .phaseBar{
-        position: sticky;
-        top: 0;
-        z-index: 50;
-        background:#fff;
-      }
-      body{ margin: 10px; }
-    }
+/* ---- セーフエリアの“仕込み”だけ（今は無視してOK） ----
+   stageに class="safe" を付けたら効く（後で有効化できる）
+*/
+#stage.safe #app{
+  transform: translateY(env(safe-area-inset-top));
+}
+
+/* ============
+   Topbar
+============ */
+#topbar{
+  padding: 10px 10px 8px;
+  background: #fff;
+  border-bottom: 1px solid var(--c-line);
+}
+.toprow{
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:10px;
+}
+.title{
+  font-weight: 700;
+  font-size: 14px;
+}
+.controls{
+  display:flex;
+  gap:6px;
+  align-items:center;
+  flex-wrap:wrap;
+  justify-content:flex-end;
+}
+button{
+  border:1px solid var(--c-line);
+  background:#fff;
+  border-radius:10px;
+  padding:6px 10px;
+  font-size:12px;
+}
+button.ghost{
+  background:transparent;
+}
+button:disabled{
+  opacity:0.45;
+}
+label.inline{
+  display:flex;
+  gap:6px;
+  align-items:center;
+  font-size:12px;
+  color:var(--c-sub);
+}
+select{
+  border:1px solid var(--c-line);
+  border-radius:10px;
+  padding:5px 8px;
+  font-size:12px;
+  background:#fff;
+}
+.statusrow{
+  margin-top:6px;
+  display:flex;
+  justify-content:space-between;
+  gap:8px;
+  font-size:12px;
+  color:var(--c-sub);
+}
+#txtStatus{ font-weight:600; color:#333; }
+#txtActing{ text-align:right; }
+
+/* ============
+   Board
+============ */
+#board{
+  height: calc(var(--appH) - 62px);
+  padding: 10px;
+  display:flex;
+  flex-direction:column;
+  gap:10px;
+}
+
+/* 2×2 */
+.players{
+  display:grid;
+  grid-template-columns: 1fr 1fr;
+  gap:10px;
+}
+
+/* ============
+   Player card
+============ */
+.player{
+  background: var(--c-panel);
+  border: 1px solid var(--c-line);
+  border-radius: 14px;
+  padding: 8px;
+  display:flex;
+  flex-direction:column;
+  gap:6px;
+  min-height: 290px;
+}
+
+.playerHeader{
+  display:flex;
+  justify-content:space-between;
+  align-items:flex-start;
+  gap:8px;
+}
+
+.pname{
+  font-weight:700;
+  font-size:13px;
+}
+.badges{
+  display:flex;
+  gap:6px;
+  flex-wrap:wrap;
+  justify-content:flex-end;
+}
+
+.badge{
+  border:1px solid var(--c-line);
+  background:#fff;
+  padding:2px 6px;
+  border-radius:999px;
+  font-size:11px;
+  color:#333;
+  white-space:nowrap;
+}
+.badge.mediumOn  { border-color:#222; color:#222; background:#fff; }
+.badge.mediumOff { border-color:#bbb; color:#777; background:#f7f7f7; }
+.badge.mediumNone{ border-color:#ddd; color:#aaa; background:#fafafa; }
+.badge.retired{
+  border-color:#ddd;
+  color:#aaa;
+  background:#fafafa;
+}
+
+.grid{
+  display:grid;
+  grid-template-columns: repeat(3, var(--slotW));
+  grid-template-rows: repeat(3, var(--slotH));
+  gap: var(--slotGap);
+  justify-content:center;
+}
+
+/* ============
+   Slot
+============ */
+.slot{
+  width: var(--slotW);
+  height: var(--slotH);
+  border-radius: 12px;
+  border: 1px solid #cfd3db;
+  background: #fbfbfe;
+  position:relative;
+  overflow:visible;
+}
+
+/* カード感（内側影） */
+.slot::before{
+  content:"";
+  position:absolute;
+  inset:2px;
+  border-radius:10px;
+  box-shadow: inset 0 1px 0 rgba(255,255,255,0.9),
+              inset 0 -2px 6px rgba(0,0,0,0.06);
+}
+
+/* DEAD / disabled は同一フィルター */
+.slot.dead,
+.slot.disabled{
+  filter: grayscale(100%) brightness(0.80);
+}
+
+/* 選択可能なホバー（PC用） */
+.slot.clickable:hover{
+  outline: 2px solid rgba(45,169,255,0.35);
+  outline-offset: 1px;
+}
+
+/* 選択中ハイライト（dead/disabledは付けない方針） */
+.slot.selected{
+  box-shadow: 0 0 0 2px rgba(45,169,255,0.35),
+              0 0 10px rgba(45,169,255,0.25);
+}
+
+/* 中央（仮：役職1文字） */
+.role{
+  position:absolute;
+  left:50%;
+  top:50%;
+  transform: translate(-50%,-50%);
+  width:32px;
+  height:56px;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  font-size: 28px;
+  font-weight: 800;
+  line-height:1;
+  user-select:none;
+  pointer-events:none;
+  z-index: 2;
+}
+
+/* ============
+   Orbs (4 corners)
+============ */
+.orb{
+  position:absolute;
+  width: var(--orbOuter);
+  height: var(--orbOuter);
+  border-radius: 50%;
+  z-index: 3;
+  pointer-events:none;
+}
+
+.orb.tl{ left:3px; top:3px; }
+.orb.tr{ right:3px; top:3px; }
+.orb.br{ right:3px; bottom:3px; }
+.orb.bl{ left:3px; bottom:3px; }
+
+.orb .ring{
+  position:absolute;
+  inset:0;
+  border-radius:50%;
+  border: var(--ringW) solid var(--c-gray2);
+}
+
+.orb .core{
+  position:absolute;
+  width: var(--orbCore);
+  height: var(--orbCore);
+  left:50%;
+  top:50%;
+  transform: translate(-50%,-50%);
+  border-radius:50%;
+  background: var(--c-gray);
+  opacity: 0.35; /* デフォルトは薄く */
+}
+
+/* “有効”表示はコアを濃く */
+.orb.active .core{ opacity: 1; }
+
+/* コア色 */
+.core.guard{ background: var(--c-guard); }
+.core.invert{ background: var(--c-invert); }
+.core.gray{ background: var(--c-gray); opacity: 0.65; }
+.core.white{ background: var(--c-white); box-shadow: inset 0 0 0 1px rgba(0,0,0,0.15); }
+.core.black{ background: var(--c-black); }
+
+/* リング色（公開占い＝金） */
+.orb.public .ring{ border-color: var(--c-gold); }
+
+/* ============
+   Log
+============ */
+.logbox{
+  margin-top:auto;
+  border: 1px solid var(--c-line);
+  border-radius: 12px;
+  background:#fff;
+  overflow:hidden;
+}
+.logbox > summary{
+  padding: 8px 10px;
+  cursor:pointer;
+  font-size:12px;
+  color:var(--c-sub);
+  border-bottom: 1px solid var(--c-line);
+}
+#logText{
+  margin:0;
+  padding:10px;
+  font-size:11px;
+  max-height: 220px;
+  overflow:auto;
+  white-space:pre-wrap;
+}
