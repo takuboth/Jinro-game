@@ -11,8 +11,8 @@
   --slotGap: 6px;
 
   --orbOuter: 16px; /* 外径 */
-  --orbCore: 12px;  /* コア径 */
-  --ringW: 2px;
+  --orbCore: 10px;  /* コア径 */
+  --ringW: 3px;
 
   /* 色 */
   --c-bg: #f6f7fb;
