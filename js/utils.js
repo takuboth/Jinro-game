@@ -1,4 +1,3 @@
-// utils.js
 import { ROLES, MARK } from "./config.js";
 
 /* ============
@@ -12,7 +11,6 @@ export function shuffle(arr, rnd = Math.random) {
   }
   return a;
 }
-
 export function nowStamp() {
   const d = new Date();
   const hh = String(d.getHours()).padStart(2, "0");
@@ -20,9 +18,8 @@ export function nowStamp() {
   const ss = String(d.getSeconds()).padStart(2, "0");
   return `${hh}:${mm}:${ss}`;
 }
-
-export function randInt(min, max) {
-  return Math.floor(Math.random() * (max - min + 1)) + min;
+export function pickRandom(arr) {
+  return arr[Math.floor(Math.random() * arr.length)];
 }
 
 /* ============
@@ -73,10 +70,6 @@ export function isPublicSeerSlot(game, playerId, slotIndex) {
 /* ============
    CPU選択ユーティリティ
 ============ */
-export function pickRandom(arr) {
-  return arr[Math.floor(Math.random() * arr.length)];
-}
-
 export function pickByMarkPriority(candidates, priority) {
   for (const m of priority) {
     const same = candidates.filter(x => getMark(x.slot) === m);
@@ -90,15 +83,11 @@ export function pickByMarkPriorityWithTieBonus(candidates, priority, bonusFn) {
     const same = candidates.filter(x => getMark(x.slot) === m);
     if (!same.length) continue;
 
-    // 同ランク内はスコア最大（少しだけランダム混ぜる）
     let best = same[0];
     let bestScore = -1e18;
     for (const x of same) {
       const score = (bonusFn ? bonusFn(x) : 0) + Math.random() * 0.01;
-      if (score > bestScore) {
-        bestScore = score;
-        best = x;
-      }
+      if (score > bestScore) { bestScore = score; best = x; }
     }
     return best;
   }
@@ -106,21 +95,10 @@ export function pickByMarkPriorityWithTieBonus(candidates, priority, bonusFn) {
 }
 
 /* ============
-   狂人の反転対象（あなたの最新版ルール）
-   - 生存WOLFが2枚以上:
-       村人 > 狂人 > 霊媒 > 狩人 > 占い > 人狼
-   - 生存WOLFが1枚:
-       人狼（確定）
+   狂人の反転対象（最新版）
 ============ */
 export function cpuPickMadInvertIndexByWolfStock(actor) {
-  const buckets = {
-    VILLAGER: [],
-    MAD: [],
-    MEDIUM: [],
-    GUARD: [],
-    SEER: [],
-    WOLF: [],
-  };
+  const buckets = { VILLAGER:[], MAD:[], MEDIUM:[], GUARD:[], SEER:[], WOLF:[] };
 
   for (let i = 0; i < actor.slots.length; i++) {
     const s = actor.slots[i];
@@ -138,90 +116,68 @@ export function cpuPickMadInvertIndexByWolfStock(actor) {
 
   if (wolvesAlive >= 2) {
     const order = ["VILLAGER", "MAD", "MEDIUM", "GUARD", "SEER", "WOLF"];
-    for (const k of order) {
-      if (buckets[k].length) return pickRandom(buckets[k]);
-    }
+    for (const k of order) if (buckets[k].length) return pickRandom(buckets[k]);
     return null;
   }
 
-  if (wolvesAlive === 1) {
-    return buckets.WOLF[0];
-  }
-
+  if (wolvesAlive === 1) return buckets.WOLF[0];
   return null;
 }
 
 /* ============
-   狩人の守り（最新版ルール）
-
-   通常（3人以上）:
+   狩人の守り優先（あなたの最新版）
+   通常：
      占い（未公開）＞狂人（未発動）＞霊媒＞狂人（発動済み）＝村人＞占い（公開）
-
-   タイマン（2人）:
+   タイマン（生存プレイヤー2人）：
      占い（公開）＞占い（未公開）＞狂人（未発動）＞霊媒＞狂人（発動済み）＝村人
+   ※同順位はランダム
 ============ */
 export function cpuPickGuardIndex(game, actor) {
-  const meId = actor.id;
+  const alivePlayers = game.players.filter(p => p.alive).length;
+  const seerPublicIdx = game.publicSeerReveal[actor.id]; // number or null
 
-  // 生存プレイヤー数
-  let alivePlayers = 0;
-  for (const p of game.players) {
-    if (p && p.slots && p.slots.some(s => !s.dead)) alivePlayers += 1;
+  const cand = [];
+  for (let i = 0; i < actor.slots.length; i++) {
+    const s = actor.slots[i];
+    if (s.dead) continue;
+    if (s.role === ROLES.GUARD) continue;
+    if (s.role === ROLES.WOLF) continue;
+    cand.push(i);
+  }
+  if (!cand.length) return null;
+
+  function rank(i){
+    const s = actor.slots[i];
+    const isSeer = s.role === ROLES.SEER;
+    const isSeerPublic = isSeer && (typeof seerPublicIdx === "number") && seerPublicIdx === i;
+    const isSeerUnpub  = isSeer && !isSeerPublic;
+
+    if (alivePlayers === 2) {
+      if (isSeerPublic) return 1;
+      if (isSeerUnpub)  return 2;
+      if (s.role === ROLES.MAD && !actor.madUsed) return 3;
+      if (s.role === ROLES.MEDIUM) return 4;
+      if (s.role === ROLES.MAD && actor.madUsed) return 5;
+      if (s.role === ROLES.VILLAGER) return 5;
+      return 9;
+    }
+
+    // 通常
+    if (isSeerUnpub) return 1;
+    if (s.role === ROLES.MAD && !actor.madUsed) return 2;
+    if (s.role === ROLES.MEDIUM) return 3;
+    if (s.role === ROLES.MAD && actor.madUsed) return 4;
+    if (s.role === ROLES.VILLAGER) return 4;
+    if (isSeerPublic) return 5;
+    return 9;
   }
 
-  const guardable = getGuardableSlotIndices(actor);
-  if (!guardable.length) return null;
-
-  const publicSeerIdx =
-    (typeof game.publicSeerReveal?.[meId] === "number")
-      ? game.publicSeerReveal[meId]
-      : null;
-
-  const buckets = {
-    SEER_PUBLIC: [],
-    SEER_PRIVATE: [],
-    MAD_UNUSED: [],
-    MEDIUM: [],
-    VILLAGER_OR_MAD_USED: [],
-  };
-
-  for (const idx of guardable) {
-    const s = actor.slots[idx];
-
-    if (s.role === ROLES.SEER) {
-      if (publicSeerIdx === idx) buckets.SEER_PUBLIC.push(idx);
-      else buckets.SEER_PRIVATE.push(idx);
-      continue;
-    }
-
-    if (s.role === ROLES.MAD) {
-      if (!actor.madUsed) buckets.MAD_UNUSED.push(idx);
-      else buckets.VILLAGER_OR_MAD_USED.push(idx);
-      continue;
-    }
-
-    if (s.role === ROLES.MEDIUM) {
-      buckets.MEDIUM.push(idx);
-      continue;
-    }
-
-    buckets.VILLAGER_OR_MAD_USED.push(idx);
+  let bestRank = 1e9;
+  const best = [];
+  for (const i of cand) {
+    const r = rank(i);
+    if (r < bestRank) { bestRank = r; best.length = 0; best.push(i); }
+    else if (r === bestRank) best.push(i);
   }
-
-  const isDuel = (alivePlayers === 2);
-
-  const order = isDuel
-    ? ["SEER_PUBLIC", "SEER_PRIVATE", "MAD_UNUSED", "MEDIUM", "VILLAGER_OR_MAD_USED"]
-    : ["SEER_PRIVATE", "MAD_UNUSED", "MEDIUM", "VILLAGER_OR_MAD_USED", "SEER_PUBLIC"];
-
-  for (const key of order) {
-    const arr = buckets[key];
-    if (arr.length) {
-      // ✅ 同順位はランダム選択
-      const r = Math.floor(Math.random() * arr.length);
-      return arr[r];
-    }
-  }
-
-  return null;
+  return best.length ? pickRandom(best) : null;
 }
