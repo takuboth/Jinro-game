@@ -149,5 +149,6 @@ export function deriveViewModel(game, viewAsId){
     phase: game.phase,
     turn: game.turn,
     selected,
+    focusPlayers: Array.from(focusPlayers),
   };
 }
