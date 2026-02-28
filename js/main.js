@@ -55,6 +55,11 @@ document.getElementById("btnAbsentOk").addEventListener("click", ()=>{
   runAutoUntilHumanTurn(game);
   render();
 });
+const btnLog = document.getElementById("btnLog");
+const logBox = document.getElementById("logBox");
 
+btnLog.addEventListener("click", ()=>{
+  logBox.open = !logBox.open;
+});
 // start
 newGame();
