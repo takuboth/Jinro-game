@@ -94,6 +94,10 @@ body{
   flex-wrap:wrap;
   justify-content:flex-end;
 }
+.player.dim{
+  filter: grayscale(100%) brightness(0.92);
+  opacity: 0.75;
+}
 button{
   border:1px solid var(--c-line);
   background:#fff;
