@@ -161,14 +161,12 @@ export function buildRenderer(rootEl, onSlotClick){
         // guard/invertはオーブで表現する。selectedは“今クリックしてる”用途に残す。
         el.classList.remove("selected"); // 今は固定で外す（必要なら後で使う）
 
-        // role (自分のストックだけ表示)
-        const revealAll = !!vm.game.over; // 勝敗確定後は全公開
-        if (revealAll || (p.id === vm.viewAsId)) {
-          roleEl.textContent = roleChar(s.role);
-        } else {
-          roleEl.textContent = "";
-        }
+        // role 表示：通常はView as本人だけ / 勝敗確定後は全員オープン
+        const revealAll = (vm.game && vm.game.over === true);
+        const showRole = revealAll || (p.id === vm.viewAsId);
 
+        roleEl.textContent = showRole ? roleChar(s.role) : "";
+        
         // orbs
         const orbs = orbEls[p.id][s.idx];
 
