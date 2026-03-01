@@ -742,14 +742,3 @@ export function applyHumanPick(game, viewAsId, playerId, slotIndex) {
     return;
   }
 }
-
-  // 通常の入力
-  if (game.phase === PHASES.ROUND0_MAD) { resolveMadPick(game, actorId, slotIndex); return; }
-  if (game.phase === PHASES.ROUND0_GUARD) { resolveGuard(game, actorId, slotIndex); return; }
-
-  if (game.phase === PHASES.SEER) { resolveSeer(game, actorId, playerId, slotIndex); return; }
-  if (game.phase === PHASES.LYNCH) { resolveLynch(game, actorId, playerId, slotIndex); return; }
-  if (game.phase === PHASES.MAD) { resolveMadPick(game, actorId, slotIndex); return; }
-  if (game.phase === PHASES.GUARD) { resolveGuard(game, actorId, slotIndex); return; }
-  if (game.phase === PHASES.BITE) { resolveBite(game, actorId, playerId, slotIndex); return; }
-}
