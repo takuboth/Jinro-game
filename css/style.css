@@ -344,3 +344,5 @@ select{
   overflow:auto;
   white-space:pre-wrap;
 }
+/* DEBUG: これで輪が出たら「CSS未定義」が原因 */
+.ring { outline: 2px solid red !important; }
