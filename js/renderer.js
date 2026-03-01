@@ -137,8 +137,9 @@ export function buildRenderer(rootEl, onSlotClick){
     logText.textContent = lines.join("\n");
 
     for (const p of vm.players){
-      playerEls[p.id].classList.toggle("dim", vm.humanCanAct && !isFocus && !vm.game.over);
       const isFocus = (!vm.humanCanAct) || vm.focusPlayers.includes(p.id);
+      playerEls[p.id].classList.toggle("dim", vm.humanCanAct && !isFocus && !vm.game.over);
+  
       headerNameEls[p.id].textContent = p.name;
 
       // badges
