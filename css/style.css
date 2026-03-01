@@ -11,7 +11,7 @@
   --slotGap: 6px;
 
   --orbOuter: 16px; /* 外径 */
-  --orbCore: 10px;  /* コア径 */
+  --orbCore: 9px;  /* コア径 */
   --ringW: 3px;
 
   /* 色 */
@@ -293,7 +293,7 @@ select{
   inset:0;
   width:100%;
   height:100%;
-  object-fit:contain;
+  object-fit:cover;
   image-rendering: auto; /* ぼけ防止 */
   inset:0;
   z-index: 2;   /* ← 上に */
