@@ -11,15 +11,16 @@ const selViewAs = document.getElementById("selViewAs");
 const root = document.getElementById("app");
 
 const renderer = buildRenderer(document, (playerId, slotIndex) => {
-  // クリック可能判定はviewModel側で計算済み。ここでは「無効クリックは無視」だけ。
   const vm = deriveViewModel(game, viewAsId);
-  if (!vm.clickable[playerId][slotIndex]) return;
 
+  // 人間のターン以外は無視
+  if (!vm.humanCanAct) return;
+
+  // clickableでなくても applyHumanPick に渡す（スキップ系を吸収する）
   applyHumanPick(game, viewAsId, playerId, slotIndex);
 
-  // 人間操作後、CPUを一気に回す
+  // 人間操作後、CPUを回す
   runAutoUntilHumanTurn(game);
-
   render();
 });
 
