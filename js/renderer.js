@@ -2,8 +2,11 @@ import { CONFIG, ROLES } from "./config.js";
 import { roleChar } from "./viewModel.js";
 
 export function buildRenderer(rootEl, onSlotClick){
-  console.log("playersWrap", playersWrap);
   const playersWrap = rootEl.querySelector("#players");
+  if (!playersWrap) {
+    throw new Error("#players not found. rootEl must be #app or inside it.");
+  }
+  console.log("playersWrap", playersWrap);
   const logText = rootEl.querySelector("#logText");
   const txtStatus = rootEl.querySelector("#txtStatus");
   const txtActing = rootEl.querySelector("#txtActing");
