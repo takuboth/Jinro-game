@@ -137,8 +137,8 @@ export function buildRenderer(rootEl, onSlotClick){
     logText.textContent = lines.join("\n");
 
     for (const p of vm.players){
+      playerEls[p.id].classList.toggle("dim", vm.humanCanAct && !isFocus && !vm.game.over);
       const isFocus = (!vm.humanCanAct) || vm.focusPlayers.includes(p.id);
-      playerEls[p.id].classList.toggle("dim", vm.humanCanAct && !isFocus);
       headerNameEls[p.id].textContent = p.name;
 
       // badges
@@ -162,7 +162,8 @@ export function buildRenderer(rootEl, onSlotClick){
         el.classList.remove("selected"); // 今は固定で外す（必要なら後で使う）
 
         // role (自分のストックだけ表示)
-        if (p.id === vm.viewAsId) {
+        const revealAll = !!vm.game.over; // 勝敗確定後は全公開
+        if (revealAll || (p.id === vm.viewAsId)) {
           roleEl.textContent = roleChar(s.role);
         } else {
           roleEl.textContent = "";
