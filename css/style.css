@@ -10,7 +10,7 @@
   --slotH: 72px;
   --slotGap: 6px;
 
-  --orbOuter: 16px; /* 外径 */
+  --orbOuter: 15px; /* 外径 */
   --orbCore: 9px;  /* コア径 */
   --ringW: 3px;
 
@@ -288,43 +288,57 @@ select{
   overflow:hidden;
   pointer-events:none;
 }
+
+/* 下地リング（色＋太さ） */
 .orb .ring{
+  position:absolute;
+  inset:0;
+  border-radius:50%;
+  box-shadow: 0 0 0 var(--ringW) rgba(160,170,180,0.95) inset; /* ←太さ */
+}
+
+/* 公開占い（リング色だけ変える） */
+.orb.public .ring{
+  box-shadow: 0 0 0 var(--ringW) rgba(212,175,55,0.95) inset;
+}
+
+/* 中心オーブ（色） */
+.orb .core{
+  position:absolute;
+  width: var(--orbCore);
+  height: var(--orbCore);
+  left:50%;
+  top:50%;
+  transform: translate(-50%,-50%);
+  border-radius:50%;
+  background: var(--c-gray);
+  opacity: 0.65;
+}
+
+/* 有効時は濃く */
+.orb.active .core{ opacity: 1; }
+
+/* 色 */
+.core.guard{ background: var(--c-guard); }
+.core.invert{ background: var(--c-invert); }
+.core.gray{ background: var(--c-gray); }
+.core.white{ background: var(--c-white); box-shadow: inset 0 0 0 1px rgba(0,0,0,0.15); }
+.core.black{ background: var(--c-black); }
+
+/* 上に重ねる光沢画像 */
+.orb .fx{
   position:absolute;
   inset:0;
   width:100%;
   height:100%;
   object-fit:cover;
-  image-rendering: auto; /* ぼけ防止 */
-  z-index: 2;   /* ← 上に */
+  pointer-events:none;
+  z-index: 3;
 }
 
-.orb .core{
-  position:absolute;
-  left:50%;
-  top:50%;
-  transform: translate(-50%,-50%);
-  width: var(--orbCore);
-  height: var(--orbCore);
-  border-radius:50%;
-  z-index: 1;   /* ← 下に */
-}
-
-/* “有効”表示はコアを濃く */
-.orb.active .core{ opacity: 1; }
-
-/* コア色 */
-.core.guard{ background: var(--c-guard); }
-.core.invert{ background: var(--c-invert); }
-.core.gray{ background: var(--c-gray); opacity: 0.65; }
-.core.white{ background: var(--c-white); box-shadow: inset 0 0 0 1px rgba(0,0,0,0.15); }
-.core.black{ background: var(--c-black); }
-
-/* リング色（公開占い＝金） */
-.orb.public{
-  box-shadow:
-    0 0 0 1px rgba(160,110,0,0.85) inset,
-    0 0 0 1px rgba(255,220,120,0.95) inset;
-}
+/* ring/core は fx の下 */
+.orb .ring{ z-index:1; }
+.orb .core{ z-index:2; }
 
 /* ============
    Log
