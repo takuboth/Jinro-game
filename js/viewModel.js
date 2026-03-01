@@ -42,12 +42,17 @@ export function deriveViewModel(game, viewAsId){
   const focusPlayers = new Set();
 
   if (humanCanAct) {
-    // clickableがあるプレイヤーを対象にする
-    for (let pid=0; pid<4; pid++){
-      if (clickable[pid].some(v => v)) focusPlayers.add(pid);
+    // 占い・吊りは左、噛みは右
+    if (game.phase === PHASES.SEER || game.phase === PHASES.LYNCH) {
+      if (targetLeft !== null) focusPlayers.add(targetLeft);
+      else focusPlayers.add(actorId);
+    } else if (game.phase === PHASES.BITE) {
+      if (targetRight !== null) focusPlayers.add(targetRight);
+      else focusPlayers.add(actorId);
+    } else {
+      // 狂人/狩人/Round0など：自分（=ターンプレイヤー）
+      focusPlayers.add(actorId);
     }
-    // 何も対象が無い（スキップ可能系）なら自分だけ対象
-    if (focusPlayers.size === 0) focusPlayers.add(actorId);
   }
   const selected  = Array.from({length:4}, ()=>Array(9).fill(false));
 
