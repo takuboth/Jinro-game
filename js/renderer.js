@@ -70,7 +70,7 @@ export function buildRenderer(rootEl, onSlotClick){
 
         const ring = document.createElement("img");
         ring.className = "ring";
-        ring.src = "../img/ring_base.png";
+        ring.src = "./img/ring_base.png";
 
         const core = document.createElement("div");
         core.className = "core gray";
