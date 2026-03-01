@@ -24,6 +24,7 @@ const renderer = buildRenderer(document, (playerId, slotIndex) => {
 });
 
 function render(){
+  console.log("viewAsId", viewAsId);
   const vm = deriveViewModel(game, viewAsId);
   renderer.update(vm);
 
