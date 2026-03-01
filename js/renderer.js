@@ -2,6 +2,7 @@ import { CONFIG, ROLES } from "./config.js";
 import { roleChar } from "./viewModel.js";
 
 export function buildRenderer(rootEl, onSlotClick){
+  console.log("playersWrap", playersWrap);
   const playersWrap = rootEl.querySelector("#players");
   const logText = rootEl.querySelector("#logText");
   const txtStatus = rootEl.querySelector("#txtStatus");
