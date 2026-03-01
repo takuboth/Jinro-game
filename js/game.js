@@ -624,7 +624,13 @@ export function cpuDoOneImmediate(game) {
 ============ */
 export function isHumanTurn(game) {
   if (!CONFIG.autoPlayers) return true;
-  return game.turn === CONFIG.humanPlayerId || game.over || game.phase === PHASES.END;
+  if (game.over || game.phase === PHASES.END) return true;
+
+  // 人間がリタイヤしたら人間ターン扱いにしない
+  const human = game.players[CONFIG.humanPlayerId];
+  if (!human.alive) return false;
+
+  return game.turn === CONFIG.humanPlayerId;
 }
 
 export function runAutoUntilHumanTurn(game) {
@@ -651,19 +657,91 @@ export function applyHumanPick(game, viewAsId, playerId, slotIndex) {
   const actorId = game.turn;
   const actor = game.players[actorId];
 
-  // クリックで進めたい「不在/スキップ」系はここで吸収
-  if (game.phase === PHASES.SEER && !hasRoleAlive(actor, ROLES.SEER)) {
-    resolveSeer(game, actorId, null, 0); // 対象なしでスキップ
+  // 人間がリタイヤ済みなら操作させない（CPUとして流す）
+  if (!actor.alive) return;
+
+  // フェーズごとの「正しい対象プレイヤー」を強制
+  const left = leftPlayerIndex(game, actorId);
+  const right = rightPlayerIndex(game, actorId);
+
+  // --- クリックで進めたい“スキップ”条件を先に吸収 ---
+  if (game.phase === PHASES.SEER) {
+    if (!hasRoleAlive(actor, ROLES.SEER) || left === null) {
+      resolveSeer(game, actorId, null, 0); // 対象なしでスキップ
+      return;
+    }
+  }
+
+  if (game.phase === PHASES.LYNCH) {
+    if (left === null) {
+      logPush(game, `P${actorId + 1} 吊り → 対象なし（生存者1人）なのでスキップ`);
+      advancePhase(game);
+      return;
+    }
+  }
+
+  if (game.phase === PHASES.BITE) {
+    if (right === null) {
+      logPush(game, `P${actorId + 1} 噛み → 対象なし（生存者1人）なのでスキップ`);
+      advancePhase(game);
+      return;
+    }
+  }
+
+  if (game.phase === PHASES.ROUND0_MAD || game.phase === PHASES.MAD) {
+    // 狂人不在 or 発動済みならクリックでスキップ
+    if (!hasRoleAlive(actor, ROLES.MAD) || actor.madUsed) {
+      resolveMadPick(game, actorId, 0); // 内部でスキップ進行
+      return;
+    }
+  }
+
+  if (game.phase === PHASES.ROUND0_GUARD || game.phase === PHASES.GUARD) {
+    // 狩人不在ならクリックでスキップ
+    if (!hasRoleAlive(actor, ROLES.GUARD)) {
+      resolveGuard(game, actorId, 0); // 内部でスキップ進行
+      return;
+    }
+  }
+
+  // --- 通常の“正規入力”は対象プレイヤーを強制して受け付ける ---
+  if (game.phase === PHASES.ROUND0_MAD) {
+    if (playerId !== actorId) return;
+    resolveMadPick(game, actorId, slotIndex);
     return;
   }
-  if ((game.phase === PHASES.MAD || game.phase === PHASES.ROUND0_MAD) && (!hasRoleAlive(actor, ROLES.MAD) || actor.madUsed)) {
-    resolveMadPick(game, actorId, 0); // slotIndexはダミーでOK（内部でスキップ）
+  if (game.phase === PHASES.ROUND0_GUARD) {
+    if (playerId !== actorId) return;
+    resolveGuard(game, actorId, slotIndex);
     return;
   }
-  if ((game.phase === PHASES.GUARD || game.phase === PHASES.ROUND0_GUARD) && !hasRoleAlive(actor, ROLES.GUARD)) {
-    resolveGuard(game, actorId, 0); // slotIndexダミーでOK（内部でスキップ）
+
+  if (game.phase === PHASES.SEER) {
+    if (playerId !== left) return;
+    resolveSeer(game, actorId, playerId, slotIndex);
     return;
   }
+  if (game.phase === PHASES.LYNCH) {
+    if (playerId !== left) return;
+    resolveLynch(game, actorId, playerId, slotIndex);
+    return;
+  }
+  if (game.phase === PHASES.MAD) {
+    if (playerId !== actorId) return;
+    resolveMadPick(game, actorId, slotIndex);
+    return;
+  }
+  if (game.phase === PHASES.GUARD) {
+    if (playerId !== actorId) return;
+    resolveGuard(game, actorId, slotIndex);
+    return;
+  }
+  if (game.phase === PHASES.BITE) {
+    if (playerId !== right) return;
+    resolveBite(game, actorId, playerId, slotIndex);
+    return;
+  }
+}
 
   // 通常の入力
   if (game.phase === PHASES.ROUND0_MAD) { resolveMadPick(game, actorId, slotIndex); return; }
