@@ -10,9 +10,9 @@
   --slotH: 72px;
   --slotGap: 6px;
 
-  --orbOuter: 15px; /* 外径 */
-  --orbCore: 9px;  /* コア径 */
-  --ringW: 3px;
+  --orbOuter: 16px; /* 外径 */
+  --orbCore: 8px;  /* コア径 */
+  --ringW: 4px;
 
   /* 色 */
   --c-bg: #f6f7fb;
@@ -276,33 +276,43 @@ select{
 /* ============
    Orbs (4 corners)
 ============ */
+
+/* 位置 */
 .orb.tl{ left:3px; top:3px; }
 .orb.tr{ right:3px; top:3px; }
 .orb.br{ right:3px; bottom:3px; }
 .orb.bl{ left:3px; bottom:3px; }
+
 .orb{
   position:absolute;
   width: var(--orbOuter);
   height: var(--orbOuter);
   border-radius:50%;
-  overflow:hidden;
+  overflow:hidden;          /* 念のため */
   pointer-events:none;
 }
 
-/* 下地リング（色＋太さ） */
+/* -----------------
+   下地リング（太さは --ringW）
+----------------- */
 .orb .ring{
   position:absolute;
   inset:0;
   border-radius:50%;
-  box-shadow: 0 0 0 var(--ringW) rgba(160,170,180,0.95) inset; /* ←太さ */
+  box-shadow:
+    0 0 0 var(--ringW) rgba(160,170,180,0.95) inset;
+  z-index:1;
 }
 
-/* 公開占い（リング色だけ変える） */
+/* 公開占いリング色 */
 .orb.public .ring{
-  box-shadow: 0 0 0 var(--ringW) rgba(212,175,55,0.95) inset;
+  box-shadow:
+    0 0 0 var(--ringW) rgba(212,175,55,0.95) inset;
 }
 
-/* 中心オーブ（色） */
+/* -----------------
+   中心オーブ
+----------------- */
 .orb .core{
   position:absolute;
   width: var(--orbCore);
@@ -312,33 +322,47 @@ select{
   transform: translate(-50%,-50%);
   border-radius:50%;
   background: var(--c-gray);
-  opacity: 0.65;
+  opacity:0.65;
+  z-index:2;
 }
 
-/* 有効時は濃く */
-.orb.active .core{ opacity: 1; }
+/* 有効時 */
+.orb.active .core{
+  opacity:1;
+}
 
 /* 色 */
 .core.guard{ background: var(--c-guard); }
 .core.invert{ background: var(--c-invert); }
 .core.gray{ background: var(--c-gray); }
-.core.white{ background: var(--c-white); box-shadow: inset 0 0 0 1px rgba(0,0,0,0.15); }
+.core.white{
+  background: var(--c-white);
+  box-shadow: inset 0 0 0 1px rgba(0,0,0,0.15);
+}
 .core.black{ background: var(--c-black); }
 
-/* 上に重ねる光沢画像 */
+/* -----------------
+   光沢FX（最上位）
+----------------- */
 .orb .fx{
   position:absolute;
-  inset:0;
-  width:100%;
-  height:100%;
+
+  /* 1px内側に縮めて色はみ出し防止 */
+  inset:1px;
+  width: calc(100% - 2px);
+  height: calc(100% - 2px);
+
   object-fit:cover;
   pointer-events:none;
-  z-index: 3;
-}
+  z-index:3;
 
-/* ring/core は fx の下 */
-.orb .ring{ z-index:1; }
-.orb .core{ z-index:2; }
+  /* ドット絵の角漏れ完全防止 */
+  clip-path: circle(50% at 50% 50%);
+  -webkit-clip-path: circle(50% at 50% 50%);
+
+  /* ドット絵なら有効 */
+  image-rendering: pixelated;
+}
 
 /* ============
    Log
