@@ -295,7 +295,6 @@ select{
   height:100%;
   object-fit:cover;
   image-rendering: auto; /* ぼけ防止 */
-  inset:0;
   z-index: 2;   /* ← 上に */
 }
 
@@ -324,7 +323,7 @@ select{
 .orb.public{
   box-shadow:
     0 0 0 1px rgba(160,110,0,0.85) inset,
-    0 0 0 1px rgba(255,220,120,0.95);
+    0 0 0 1px rgba(255,220,120,0.95) inset;
 }
 
 /* ============
