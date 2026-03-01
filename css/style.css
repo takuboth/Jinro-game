@@ -276,37 +276,34 @@ select{
 /* ============
    Orbs (4 corners)
 ============ */
+.orb.tl{ left:3px; top:3px; }
+.orb.tr{ right:3px; top:3px; }
+.orb.br{ right:3px; bottom:3px; }
+.orb.bl{ left:3px; bottom:3px; }
 .orb{
   position:absolute;
   width: var(--orbOuter);
   height: var(--orbOuter);
   border-radius:50%;
+  overflow:hidden;
   pointer-events:none;
-  z-index: 3;
-  overflow:hidden; /* ← これ重要：四角い画像の角を消す */
 }
-.orb.tl{ left:3px; top:3px; }
-.orb.tr{ right:3px; top:3px; }
-.orb.br{ right:3px; bottom:3px; }
-.orb.bl{ left:3px; bottom:3px; }
+
 .orb .ring{
   position:absolute;
   inset:0;
-  width:100%;
-  height:100%;
-  display:block;
-  object-fit:contain;
+  z-index: 2;   /* ← 上に */
 }
-.orb .ring{ z-index:0; }
-.orb .core{ z-index:1; }
+
 .orb .core{
   position:absolute;
-  width: var(--orbCore);
-  height: var(--orbCore);
   left:50%;
   top:50%;
   transform: translate(-50%,-50%);
+  width: var(--orbCore);
+  height: var(--orbCore);
   border-radius:50%;
+  z-index: 1;   /* ← 下に */
 }
 
 /* “有効”表示はコアを濃く */
