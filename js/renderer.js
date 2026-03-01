@@ -65,20 +65,28 @@ export function buildRenderer(rootEl, onSlotClick){
 
       // orbs 4 corners
       function makeOrb(pos){
-        const o = document.createElement("div");
-        o.className = `orb ${pos}`;
+  const o = document.createElement("div");
+  o.className = `orb ${pos}`;
 
-        const ring = document.createElement("img");
-        ring.className = "ring";
-        ring.src = "./img/ring_base.png";
+  // 下地リング（色だけ）
+  const ring = document.createElement("div");
+  ring.className = "ring";
 
-        const core = document.createElement("div");
-        core.className = "core gray";
+  // 中心オーブ（色だけ）
+  const core = document.createElement("div");
+  core.className = "core gray";
 
-        o.appendChild(ring);
-        o.appendChild(core);
-        return {wrap:o, ring, core};
-      }
+  // 上に重ねる光沢（共通画像1枚）
+  const fx = document.createElement("img");
+  fx.className = "fx";
+  fx.src = "./img/ring_base.png";   // 光と縁取りの画像（透明PNG）
+
+  o.appendChild(ring);
+  o.appendChild(core);
+  o.appendChild(fx);
+
+  return {wrap:o, ring, core, fx};
+}
 
       const tl = makeOrb("tl");
       const tr = makeOrb("tr");
