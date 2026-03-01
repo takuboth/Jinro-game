@@ -38,7 +38,7 @@ export function buildRenderer(rootEl, onSlotClick){
 
     const bMedium = document.createElement("span");
     bMedium.className = "badge mediumNone";
-    bMedium.textContent = "霊媒:-";
+    bMedium.textContent = "人狼:-";
 
     const bVillage = document.createElement("span");
     bVillage.className = "badge";
@@ -144,7 +144,7 @@ export function buildRenderer(rootEl, onSlotClick){
 
       // badges
       badgeMediumEls[p.id].className = `badge ${p.mediumClass}` + (p.alive ? "" : " retired");
-      badgeMediumEls[p.id].textContent = `霊媒:${(p.mediumVal===null?"-":p.mediumVal)}`;
+      badgeMediumEls[p.id].textContent = `人狼:${(p.mediumVal===null?"-":p.mediumVal)}`;
 
       badgeVillageEls[p.id].className = "badge" + (p.alive ? "" : " retired");
       badgeVillageEls[p.id].textContent = `村役:${p.villageTotal}`;
