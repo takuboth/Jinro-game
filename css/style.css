@@ -280,18 +280,13 @@ select{
   position:absolute;
   width: var(--orbOuter);
   height: var(--orbOuter);
-  border-radius: 50%;
-  z-index: 3;
   pointer-events:none;
 }
 
-.orb.tl{ left:3px; top:3px; }
-.orb.tr{ right:3px; top:3px; }
-.orb.br{ right:3px; bottom:3px; }
-.orb.bl{ left:3px; bottom:3px; }
-
-.orb .ring {
-  background: url("./img/ring_base.png") center/contain no-repeat;
+.orb .ring{
+  width:100%;
+  height:100%;
+  display:block;
 }
 
 .orb .core{
@@ -302,8 +297,6 @@ select{
   top:50%;
   transform: translate(-50%,-50%);
   border-radius:50%;
-  background: var(--c-gray);
-  opacity: 0.35; /* デフォルトは薄く */
 }
 
 /* “有効”表示はコアを濃く */
