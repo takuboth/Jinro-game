@@ -141,11 +141,17 @@ export function buildRenderer(rootEl, onSlotClick){
     logText.textContent = lines.join("\n");
 
     for (const p of vm.players){
-      const isFocus = (!vm.humanCanAct) || vm.focusPlayers.includes(p.id);
-      playerEls[p.id].classList.toggle("dim", vm.humanCanAct && !isFocus && !vm.game.over);
-  
-      headerNameEls[p.id].textContent = p.name;
 
+      const focus = Array.isArray(vm.focusPlayers) ? vm.focusPlayers : [];
+      const isFocus = (!vm.humanCanAct) || focus.includes(p.id);
+
+      playerEls[p.id].classList.toggle(
+        "dim",
+        vm.humanCanAct && !isFocus && !vm.game.over
+      );
+
+      headerNameEls[p.id].textContent = p.name;
+      
       // badges
       badgeMediumEls[p.id].className = `badge ${p.mediumClass}` + (p.alive ? "" : " retired");
       badgeMediumEls[p.id].textContent = `人狼:${(p.mediumVal===null?"-":p.mediumVal)}`;
