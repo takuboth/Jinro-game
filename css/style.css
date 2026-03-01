@@ -290,11 +290,8 @@ select{
 .orb.br{ right:3px; bottom:3px; }
 .orb.bl{ left:3px; bottom:3px; }
 
-.orb .ring{
-  position:absolute;
-  inset:0;
-  border-radius:50%;
-  border: var(--ringW) solid var(--c-gray2);
+.orb .ring {
+  background: url("./img/ring_base.png") center/contain no-repeat;
 }
 
 .orb .core{
