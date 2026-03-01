@@ -280,15 +280,25 @@ select{
   position:absolute;
   width: var(--orbOuter);
   height: var(--orbOuter);
+  border-radius:50%;
   pointer-events:none;
+  z-index: 3;
+  overflow:hidden; /* ← これ重要：四角い画像の角を消す */
 }
-
+.orb.tl{ left:3px; top:3px; }
+.orb.tr{ right:3px; top:3px; }
+.orb.br{ right:3px; bottom:3px; }
+.orb.bl{ left:3px; bottom:3px; }
 .orb .ring{
+  position:absolute;
+  inset:0;
   width:100%;
   height:100%;
   display:block;
+  object-fit:contain;
 }
-
+.orb .ring{ z-index:0; }
+.orb .core{ z-index:1; }
 .orb .core{
   position:absolute;
   width: var(--orbCore);
@@ -310,7 +320,11 @@ select{
 .core.black{ background: var(--c-black); }
 
 /* リング色（公開占い＝金） */
-.orb.public .ring{ border-color: var(--c-gold); }
+.orb.public{
+  box-shadow:
+    0 0 0 1px rgba(160,110,0,0.85) inset,
+    0 0 0 1px rgba(255,220,120,0.95);
+}
 
 /* ============
    Log
