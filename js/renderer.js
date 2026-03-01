@@ -68,8 +68,10 @@ export function buildRenderer(rootEl, onSlotClick){
         const o = document.createElement("div");
         o.className = `orb ${pos}`;
 
-        const ring = document.createElement("div");
+        const ring = document.createElement("img");
         ring.className = "ring";
+        ring.src = "../img/ring_base.png";
+
         const core = document.createElement("div");
         core.className = "core gray";
 
