@@ -1,183 +1,105 @@
 import { ROLES, MARK } from "./config.js";
 
-/* ============
-   乱数・共通
-============ */
-export function shuffle(arr, rnd = Math.random) {
+export function nowStamp(){
+  const d = new Date();
+  const hh = String(d.getHours()).padStart(2,"0");
+  const mm = String(d.getMinutes()).padStart(2,"0");
+  const ss = String(d.getSeconds()).padStart(2,"0");
+  return `${hh}:${mm}:${ss}`;
+}
+
+export function shuffle(arr){
   const a = arr.slice();
-  for (let i = a.length - 1; i > 0; i--) {
-    const j = Math.floor(rnd() * (i + 1));
-    [a[i], a[j]] = [a[j], a[i]];
+  for (let i=a.length-1;i>0;i--){
+    const j = Math.floor(Math.random()*(i+1));
+    [a[i],a[j]] = [a[j],a[i]];
   }
   return a;
 }
-export function nowStamp() {
-  const d = new Date();
-  const hh = String(d.getHours()).padStart(2, "0");
-  const mm = String(d.getMinutes()).padStart(2, "0");
-  const ss = String(d.getSeconds()).padStart(2, "0");
-  return `${hh}:${mm}:${ss}`;
-}
-export function pickRandom(arr) {
-  return arr[Math.floor(Math.random() * arr.length)];
+
+export function pickRandom(arr){
+  if (!arr.length) return null;
+  return arr[Math.floor(Math.random()*arr.length)];
 }
 
-/* ============
-   スロット/マーク関連
-============ */
-export function getAliveSlotIndices(pl) {
-  const res = [];
-  for (let i = 0; i < pl.slots.length; i++) {
-    if (!pl.slots[i].dead) res.push(i);
+export function getAliveSlotIndices(pl){
+  const out = [];
+  for (let i=0;i<pl.slots.length;i++){
+    if (!pl.slots[i].dead) out.push(i);
   }
-  return res;
+  return out;
 }
 
-export function getGuardableSlotIndices(pl) {
-  const res = [];
-  for (let i = 0; i < pl.slots.length; i++) {
+export function getGuardableSlotIndices(pl){
+  const out = [];
+  for (let i=0;i<pl.slots.length;i++){
     const s = pl.slots[i];
     if (s.dead) continue;
     if (s.role === ROLES.GUARD) continue;
     if (s.role === ROLES.WOLF) continue;
-    res.push(i);
+    out.push(i);
   }
-  return res;
+  return out;
 }
 
-export function getMark(slot) {
-  if (!slot || !slot.publicSeer || !slot.publicSeer.last) return MARK.GRAY;
-  return slot.publicSeer.last === "黒" ? MARK.BLACK : MARK.WHITE;
+export function getMark(slot){
+  const last = slot.publicSeer?.last ?? null; // "白" | "黒" | null
+  if (last === "白") return MARK.WHITE;
+  if (last === "黒") return MARK.BLACK;
+  return MARK.GRAY;
 }
 
-export function isRecentBiteFail(slot, currentBiteNo, avoidSpan = 2) {
-  const bf = slot.biteFailCount || 0;
-  const bt = slot.biteFailTurn;
-  if (bf <= 0) return false;
-  if (bt === null || typeof bt !== "number") return false;
-  return currentBiteNo - bt <= avoidSpan;
+export function isPublicSeerSlot(game, playerId, slotIndex){
+  const idx = game.publicSeerReveal?.[playerId];
+  return (typeof idx === "number") && idx === slotIndex;
 }
 
-/* ============
-   公開占い（★占）判定
-   game.publicSeerReveal[playerId] === slotIndex
-============ */
-export function isPublicSeerSlot(game, playerId, slotIndex) {
-  return typeof game.publicSeerReveal[playerId] === "number"
-    && game.publicSeerReveal[playerId] === slotIndex;
+// 噛み不発が「直近2回」以内か、みたいな判定用（今は雑に）
+export function isRecentBiteFail(slot, currentBiteNo, within){
+  if (!slot.biteFailTurn) return false;
+  return (currentBiteNo - slot.biteFailTurn) <= within;
 }
 
-/* ============
-   CPU選択ユーティリティ
-============ */
-export function pickByMarkPriority(candidates, priority) {
-  for (const m of priority) {
-    const same = candidates.filter(x => getMark(x.slot) === m);
-    if (same.length) return pickRandom(same);
+/* 優先順位で1つ選ぶ（同率は先頭） */
+export function pickByMarkPriority(cands, order){
+  for (const m of order){
+    const hit = cands.find(x => getMark(x.slot) === m);
+    if (hit) return hit;
   }
-  return candidates.length ? pickRandom(candidates) : null;
+  return cands[0];
 }
 
-export function pickByMarkPriorityWithTieBonus(candidates, priority, bonusFn) {
-  for (const m of priority) {
-    const same = candidates.filter(x => getMark(x.slot) === m);
-    if (!same.length) continue;
+/* 優先＋同率ボーナス（ランダム少し） */
+export function pickByMarkPriorityWithTieBonus(cands, order, bonusFn){
+  let best = null;
+  let bestScore = -1;
 
-    let best = same[0];
-    let bestScore = -1e18;
-    for (const x of same) {
-      const score = (bonusFn ? bonusFn(x) : 0) + Math.random() * 0.01;
-      if (score > bestScore) { bestScore = score; best = x; }
+  function baseScore(mark){
+    const idx = order.indexOf(mark);
+    return (idx === -1) ? 0 : (order.length - idx) * 10;
+  }
+
+  for (const c of cands){
+    const score =
+      baseScore(getMark(c.slot)) +
+      (bonusFn ? bonusFn(c) : 0) +
+      Math.random()*0.01;
+    if (score > bestScore){
+      bestScore = score;
+      best = c;
     }
-    return best;
   }
-  return candidates.length ? pickRandom(candidates) : null;
+  return best ?? cands[0];
 }
 
-/* ============
-   狂人の反転対象（最新版）
-============ */
-export function cpuPickMadInvertIndexByWolfStock(actor) {
-  const buckets = { VILLAGER:[], MAD:[], MEDIUM:[], GUARD:[], SEER:[], WOLF:[] };
-
-  for (let i = 0; i < actor.slots.length; i++) {
-    const s = actor.slots[i];
-    if (s.dead) continue;
-
-    if (s.role === ROLES.VILLAGER) buckets.VILLAGER.push(i);
-    else if (s.role === ROLES.MAD) buckets.MAD.push(i);
-    else if (s.role === ROLES.MEDIUM) buckets.MEDIUM.push(i);
-    else if (s.role === ROLES.GUARD) buckets.GUARD.push(i);
-    else if (s.role === ROLES.SEER) buckets.SEER.push(i);
-    else if (s.role === ROLES.WOLF) buckets.WOLF.push(i);
-  }
-
-  const wolvesAlive = buckets.WOLF.length;
-
-  if (wolvesAlive >= 2) {
-    const order = ["VILLAGER", "MAD", "MEDIUM", "GUARD", "SEER", "WOLF"];
-    for (const k of order) if (buckets[k].length) return pickRandom(buckets[k]);
-    return null;
-  }
-
-  if (wolvesAlive === 1) return buckets.WOLF[0];
-  return null;
+/* CPUの雑ロジック */
+export function cpuPickMadInvertIndexByWolfStock(actor){
+  // とりあえず：生存からランダム
+  const alive = getAliveSlotIndices(actor);
+  return pickRandom(alive);
 }
 
-/* ============
-   狩人の守り優先（あなたの最新版）
-   通常：
-     占い（未公開）＞狂人（未発動）＞霊媒＞狂人（発動済み）＝村人＞占い（公開）
-   タイマン（生存プレイヤー2人）：
-     占い（公開）＞占い（未公開）＞狂人（未発動）＞霊媒＞狂人（発動済み）＝村人
-   ※同順位はランダム
-============ */
-export function cpuPickGuardIndex(game, actor) {
-  const alivePlayers = game.players.filter(p => p.alive).length;
-  const seerPublicIdx = game.publicSeerReveal[actor.id]; // number or null
-
-  const cand = [];
-  for (let i = 0; i < actor.slots.length; i++) {
-    const s = actor.slots[i];
-    if (s.dead) continue;
-    if (s.role === ROLES.GUARD) continue;
-    if (s.role === ROLES.WOLF) continue;
-    cand.push(i);
-  }
-  if (!cand.length) return null;
-
-  function rank(i){
-    const s = actor.slots[i];
-    const isSeer = s.role === ROLES.SEER;
-    const isSeerPublic = isSeer && (typeof seerPublicIdx === "number") && seerPublicIdx === i;
-    const isSeerUnpub  = isSeer && !isSeerPublic;
-
-    if (alivePlayers === 2) {
-      if (isSeerPublic) return 1;
-      if (isSeerUnpub)  return 2;
-      if (s.role === ROLES.MAD && !actor.madUsed) return 3;
-      if (s.role === ROLES.MEDIUM) return 4;
-      if (s.role === ROLES.MAD && actor.madUsed) return 5;
-      if (s.role === ROLES.VILLAGER) return 5;
-      return 9;
-    }
-
-    // 通常
-    if (isSeerUnpub) return 1;
-    if (s.role === ROLES.MAD && !actor.madUsed) return 2;
-    if (s.role === ROLES.MEDIUM) return 3;
-    if (s.role === ROLES.MAD && actor.madUsed) return 4;
-    if (s.role === ROLES.VILLAGER) return 4;
-    if (isSeerPublic) return 5;
-    return 9;
-  }
-
-  let bestRank = 1e9;
-  const best = [];
-  for (const i of cand) {
-    const r = rank(i);
-    if (r < bestRank) { bestRank = r; best.length = 0; best.push(i); }
-    else if (r === bestRank) best.push(i);
-  }
-  return best.length ? pickRandom(best) : null;
+export function cpuPickGuardIndex(game, actor){
+  const cand = getGuardableSlotIndices(actor);
+  return pickRandom(cand);
 }
