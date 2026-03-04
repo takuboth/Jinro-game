@@ -206,11 +206,11 @@ select{
 .slot{
   width: var(--slotW);
   height: var(--slotH);
-  border-radius: 12px;
-  border: 1px solid #cfd3db;
-  background: #fbfbfe;
+
+  background-image: url("../img/slot.svg");
+  background-size: cover;
+
   position:relative;
-  overflow:visible;
 }
 
 /* カード感（内側影） */
