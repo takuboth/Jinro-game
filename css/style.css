@@ -255,7 +255,7 @@ select{
 }
 
 /* ============
-   Orbs（色はCSS、光は画像）
+   Orbs（色はCSSのみ。光沢画像は使わない）
 ============ */
 .orb{
   position:absolute;
@@ -264,16 +264,14 @@ select{
   border-radius:50%;
   overflow:hidden;
   pointer-events:none;
-  z-index: 4; /* roleより上、slotFrameより下にしたいなら 4 */
+  z-index: 4;
 }
 
-/* 角から3px */
 .orb.tl{ left:3px; top:3px; }
 .orb.tr{ right:3px; top:3px; }
 .orb.br{ right:3px; bottom:3px; }
 .orb.bl{ left:3px; bottom:3px; }
 
-/* リング下地（色＋太さ） */
 .orb .ring{
   position:absolute;
   inset:0;
@@ -282,12 +280,10 @@ select{
   z-index: 1;
 }
 
-/* 公開占い：リング色だけ金 */
 .orb.public .ring{
   box-shadow: 0 0 0 var(--ringW) rgba(212,175,55,0.98) inset;
 }
 
-/* 中心コア（色） */
 .orb .core{
   position:absolute;
   left:50%;
@@ -301,18 +297,6 @@ select{
   z-index: 2;
 }
 
-/* 光（ツヤ）画像：ドット絵のはみ出し対策で “orb側は隠す” */
-.orb .fx{
-  position:absolute;
-  inset:0;
-  width:100%;
-  height:100%;
-  object-fit:cover;
-  pointer-events:none;
-  z-index: 3;
-}
-
-/* コア色クラス */
 .core.guard{ background: var(--c-guard); }
 .core.invert{ background: var(--c-invert); }
 .core.gray{ background: var(--c-gray); }
