@@ -7,7 +7,6 @@ export function buildRenderer(rootEl, onSlotClick){
   const txtStatus = rootEl.querySelector("#txtStatus");
   const txtActing = rootEl.querySelector("#txtActing");
 
-  // 参照保持
   const playerEls = [];
   const headerNameEls = [];
   const badgeWolfEls = [];
@@ -17,7 +16,6 @@ export function buildRenderer(rootEl, onSlotClick){
   const roleEls = Array.from({length:4}, ()=>Array(9).fill(null));
   const orbEls  = Array.from({length:4}, ()=>Array.from({length:9}, ()=>({tl:null,tr:null,br:null,bl:null})));
 
-  // DOM固定生成
   playersWrap.innerHTML = "";
 
   for (let pid=0; pid<4; pid++){
@@ -70,16 +68,10 @@ export function buildRenderer(rootEl, onSlotClick){
         const core = document.createElement("div");
         core.className = "core gray";
 
-        const fx = document.createElement("img");
-        fx.className = "fx";
-        fx.src = "./img/orb_fx.png";
-        fx.alt = "";
-
         o.appendChild(ring);
         o.appendChild(core);
-        o.appendChild(fx);
 
-        return {wrap:o, ring, core, fx};
+        return {wrap:o, ring, core};
       }
 
       const tl = makeOrb("tl");
@@ -92,13 +84,12 @@ export function buildRenderer(rootEl, onSlotClick){
       slot.appendChild(br.wrap);
       slot.appendChild(bl.wrap);
 
-      // center role
       const role = document.createElement("div");
       role.className = "role";
       role.textContent = "";
       slot.appendChild(role);
 
-      // slot frame svg（最上）
+      // slot frame svg（slot側に光沢が入ってる想定）
       const frame = document.createElement("img");
       frame.className = "slotFrame";
       frame.src = "./img/slot.svg";
@@ -147,7 +138,6 @@ export function buildRenderer(rootEl, onSlotClick){
 
       headerNameEls[p.id].textContent = p.name;
 
-      // badges
       badgeWolfEls[p.id].className = `badge ${p.mediumClass}` + (p.alive ? "" : " retired");
       badgeWolfEls[p.id].textContent = `人狼:${(p.mediumVal===null?"-":p.mediumVal)}`;
 
@@ -162,7 +152,6 @@ export function buildRenderer(rootEl, onSlotClick){
         el.classList.toggle("disabled", !p.alive);
         el.classList.toggle("clickable", !!vm.clickable[p.id][s.idx]);
 
-        // role 表示：勝敗確定後は全員オープン / 通常はView as本人だけ
         const revealAll = (vm.game && vm.game.over === true);
         const showRole = revealAll || (p.id === vm.viewAsId);
         roleEl.textContent = showRole ? roleChar(s.role) : "";
@@ -170,15 +159,15 @@ export function buildRenderer(rootEl, onSlotClick){
         const orbs = orbEls[p.id][s.idx];
         const isSelfView = (p.id === vm.viewAsId);
 
-        // 左上：守り（本人だけ）
+        // TL: guard（本人だけ）
         const guardActive = isSelfView && (typeof p.guardIndex === "number" && p.guardIndex === s.idx);
         setCore(orbs.tl, guardActive ? "guard" : "gray");
 
-        // 右上：反転（未発動＆本人だけ）
+        // TR: invert（未発動＆本人だけ）
         const invertActive = isSelfView && (!p.madUsed && typeof p.invertIndex === "number" && p.invertIndex === s.idx);
         setCore(orbs.tr, invertActive ? "invert" : "gray");
 
-        // 右下：占い結果（公開）
+        // BR: seer mark（公開）
         if (s.mark === "WHITE") setCore(orbs.br, "white");
         else if (s.mark === "BLACK") setCore(orbs.br, "black");
         else setCore(orbs.br, "gray");
@@ -186,7 +175,7 @@ export function buildRenderer(rootEl, onSlotClick){
         // 公開占い：リング金
         setPublic(orbs.br, !!s.isPublicSeer);
 
-        // 左下：今は未使用（灰）
+        // BL: 未使用
         setCore(orbs.bl, "gray");
       }
     }
