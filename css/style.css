@@ -1,18 +1,19 @@
 /* ============
-   固定キャンバス（360×780）
+   固定キャンバス（360×640）
 ============ */
 :root{
   --appW: 360px;
-  --appH: 780px;
+  --appH: 640px;
 
-  /* スロット/オーブ */
+  /* スロット/配置 */
   --slotW: 48px;
   --slotH: 72px;
   --slotGap: 6px;
 
-  --orbOuter: 16px; /* 外径 */
-  --orbCore: 8px;  /* コア径 */
-  --ringW: 4px;
+  /* オーブ（外径/内径） */
+  --orbOuter: 12px; /* 外径：12にしたいならここ */
+  --orbCore: 8px;   /* コア外径：8 */
+  --ringW: 2px;     /* リング太さ（12-8=4 → 片側2） */
 
   /* 色 */
   --c-bg: #f6f7fb;
@@ -22,14 +23,11 @@
   --c-sub: #666;
 
   --c-gray: #9aa0a6;
-  --c-gray2:#c7cbd1;
-
   --c-guard:#2da9ff;
   --c-invert:#a94dff;
 
   --c-white:#f0f0f0;
   --c-black:#111;
-
   --c-gold:#d4af37;
 
   --hl: rgba(45,169,255,0.35);
@@ -40,7 +38,7 @@ body{
   margin:0;
   font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
   color:var(--c-text);
-  background: #111; /* 周囲 */
+  background:#111;
 }
 
 #stage{
@@ -51,7 +49,7 @@ body{
   padding: 12px;
 }
 
-/* app本体は常に360×780の論理サイズ */
+/* app本体は常に360×640の論理サイズ */
 #app{
   width: var(--appW);
   height: var(--appH);
@@ -62,19 +60,12 @@ body{
   position:relative;
 }
 
-/* ---- セーフエリアの“仕込み”だけ（今は無視してOK） ----
-   stageに class="safe" を付けたら効く（後で有効化できる）
-*/
-#stage.safe #app{
-  transform: translateY(env(safe-area-inset-top));
-}
-
 /* ============
    Topbar
 ============ */
 #topbar{
   padding: 10px 10px 8px;
-  background: #fff;
+  background:#fff;
   border-bottom: 1px solid var(--c-line);
 }
 .toprow{
@@ -84,8 +75,8 @@ body{
   gap:10px;
 }
 .title{
-  font-weight: 700;
-  font-size: 14px;
+  font-weight:700;
+  font-size:14px;
 }
 .controls{
   display:flex;
@@ -94,10 +85,6 @@ body{
   flex-wrap:wrap;
   justify-content:flex-end;
 }
-.player.dim{
-  filter: grayscale(100%) brightness(0.92);
-  opacity: 0.75;
-}
 button{
   border:1px solid var(--c-line);
   background:#fff;
@@ -105,12 +92,8 @@ button{
   padding:6px 10px;
   font-size:12px;
 }
-button.ghost{
-  background:transparent;
-}
-button:disabled{
-  opacity:0.45;
-}
+button:disabled{ opacity:0.45; }
+
 label.inline{
   display:flex;
   gap:6px;
@@ -145,10 +128,10 @@ select{
   display:flex;
   flex-direction:column;
   gap:10px;
-  overflow:auto;              /* ★追加 */
+  overflow:auto;
 }
 
-/* 2×2 */
+/* 2×2 プレイヤー */
 .players{
   display:grid;
   grid-template-columns: 1fr 1fr;
@@ -166,7 +149,6 @@ select{
   display:flex;
   flex-direction:column;
   gap:6px;
-  min-height: 290px;
 }
 
 .playerHeader{
@@ -180,6 +162,7 @@ select{
   font-weight:700;
   font-size:13px;
 }
+
 .badges{
   display:flex;
   gap:6px;
@@ -196,15 +179,19 @@ select{
   color:#333;
   white-space:nowrap;
 }
-.badge.mediumOn  { border-color:#222; color:#222; background:#fff; }
-.badge.mediumOff { border-color:#bbb; color:#777; background:#f7f7f7; }
-.badge.mediumNone{ border-color:#ddd; color:#aaa; background:#fafafa; }
 .badge.retired{
   border-color:#ddd;
   color:#aaa;
   background:#fafafa;
 }
 
+/* 対象外プレイヤーの減色 */
+.player.dim{
+  filter: grayscale(100%) brightness(0.92);
+  opacity: 0.75;
+}
+
+/* 3×3 スロット */
 .grid{
   display:grid;
   grid-template-columns: repeat(3, var(--slotW));
@@ -232,11 +219,12 @@ select{
   position:absolute;
   inset:2px;
   border-radius:10px;
-  box-shadow: inset 0 1px 0 rgba(255,255,255,0.9),
-              inset 0 -2px 6px rgba(0,0,0,0.06);
+  box-shadow:
+    inset 0 1px 0 rgba(255,255,255,0.9),
+    inset 0 -2px 6px rgba(0,0,0,0.06);
 }
 
-/* DEAD / disabled は同一フィルター */
+/* DEAD / disabled */
 .slot.dead,
 .slot.disabled{
   filter: grayscale(100%) brightness(0.80);
@@ -244,17 +232,11 @@ select{
 
 /* 選択可能なホバー（PC用） */
 .slot.clickable:hover{
-  outline: 2px solid rgba(45,169,255,0.35);
+  outline: 2px solid var(--hl);
   outline-offset: 1px;
 }
 
-/* 選択中ハイライト（dead/disabledは付けない方針） */
-.slot.selected{
-  box-shadow: 0 0 0 2px rgba(45,169,255,0.35),
-              0 0 10px rgba(45,169,255,0.25);
-}
-
-/* 中央（仮：役職1文字） */
+/* 役職文字（仮） */
 .role{
   position:absolute;
   left:50%;
@@ -275,44 +257,40 @@ select{
 
 /* ============
    Orbs (4 corners)
+   - 下：CSSでリング色＆コア色
+   - 上：fx画像（光/縁取り）を重ねる
 ============ */
-
-/* 位置 */
-.orb.tl{ left:3px; top:3px; }
-.orb.tr{ right:3px; top:3px; }
-.orb.br{ right:3px; bottom:3px; }
-.orb.bl{ left:3px; bottom:3px; }
-
 .orb{
   position:absolute;
   width: var(--orbOuter);
   height: var(--orbOuter);
   border-radius:50%;
-  overflow:hidden;          /* 念のため */
+  overflow:hidden;     /* ← ドット絵のはみ出し対策：ここで切る */
   pointer-events:none;
+  z-index: 3;
 }
 
-/* -----------------
-   下地リング（太さは --ringW）
------------------ */
+/* 角位置：角から3px */
+.orb.tl{ left:3px; top:3px; }
+.orb.tr{ right:3px; top:3px; }
+.orb.br{ right:3px; bottom:3px; }
+.orb.bl{ left:3px; bottom:3px; }
+
+/* リング（色＋太さ） */
 .orb .ring{
   position:absolute;
   inset:0;
   border-radius:50%;
-  box-shadow:
-    0 0 0 var(--ringW) rgba(160,170,180,0.95) inset;
-  z-index:1;
+  box-shadow: 0 0 0 var(--ringW) rgba(160,170,180,0.95) inset;
+  z-index: 1;
 }
 
-/* 公開占いリング色 */
+/* 公開占い：リング金 */
 .orb.public .ring{
-  box-shadow:
-    0 0 0 var(--ringW) rgba(212,175,55,0.95) inset;
+  box-shadow: 0 0 0 var(--ringW) rgba(212,175,55,0.98) inset;
 }
 
-/* -----------------
-   中心オーブ
------------------ */
+/* コア（色） */
 .orb .core{
   position:absolute;
   width: var(--orbCore);
@@ -322,70 +300,30 @@ select{
   transform: translate(-50%,-50%);
   border-radius:50%;
   background: var(--c-gray);
-  opacity:0.65;
-  z-index:2;
+  opacity: 0.65;
+  z-index: 2;
 }
 
-/* 有効時 */
-.orb.active .core{
-  opacity:1;
-}
+/* 有効時は濃く */
+.orb.active .core{ opacity: 1; }
 
-/* 色 */
+/* コア色 */
 .core.guard{ background: var(--c-guard); }
 .core.invert{ background: var(--c-invert); }
 .core.gray{ background: var(--c-gray); }
-.core.white{
-  background: var(--c-white);
-  box-shadow: inset 0 0 0 1px rgba(0,0,0,0.15);
-}
+.core.white{ background: var(--c-white); box-shadow: inset 0 0 0 1px rgba(0,0,0,0.15); }
 .core.black{ background: var(--c-black); }
 
-/* -----------------
-   光沢FX（最上位）
------------------ */
+/* 光・縁取り（上に重ねる画像） */
 .orb .fx{
   position:absolute;
-
-  /* 1px内側に縮めて色はみ出し防止 */
-  inset:1px;
-  width: calc(100% - 2px);
-  height: calc(100% - 2px);
-
+  inset:0;
+  width:100%;
+  height:100%;
   object-fit:cover;
   pointer-events:none;
-  z-index:3;
+  z-index: 3;
 
-  /* ドット絵の角漏れ完全防止 */
-  clip-path: circle(50% at 50% 50%);
-  -webkit-clip-path: circle(50% at 50% 50%);
-
-  /* ドット絵なら有効 */
+  /* ドット絵の見え方を優先したいなら pixelated にする */
   image-rendering: pixelated;
-}
-
-/* ============
-   Log
-============ */
-.logbox{
-  margin-top:auto;
-  border: 1px solid var(--c-line);
-  border-radius: 12px;
-  background:#fff;
-  overflow:hidden;
-}
-.logbox > summary{
-  padding: 8px 10px;
-  cursor:pointer;
-  font-size:12px;
-  color:var(--c-sub);
-  border-bottom: 1px solid var(--c-line);
-}
-#logText{
-  margin:0;
-  padding:10px;
-  font-size:11px;
-  max-height: 220px;
-  overflow:auto;
-  white-space:pre-wrap;
 }
