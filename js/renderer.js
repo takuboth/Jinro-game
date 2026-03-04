@@ -1,16 +1,13 @@
-import { CONFIG, ROLES } from "./config.js";
 import { roleChar } from "./viewModel.js";
 
 export function buildRenderer(rootEl, onSlotClick){
   const playersWrap = rootEl.querySelector("#players");
+  const txtStatus = rootEl.querySelector("#txtStatus");
+  const txtActing = rootEl.querySelector("#txtActing");
+
   if (!playersWrap) {
     throw new Error("#players not found. rootEl must be #app or inside it.");
   }
-  console.log("playersWrap", playersWrap);
-  const logText = rootEl.querySelector("#logText");
-  const txtStatus = rootEl.querySelector("#txtStatus");
-  const txtActing = rootEl.querySelector("#txtActing");
-  const btnAbsentOk = rootEl.querySelector("#btnAbsentOk");
 
   // 参照保持
   const playerEls = [];
@@ -41,7 +38,7 @@ export function buildRenderer(rootEl, onSlotClick){
     right.className = "badges";
 
     const bMedium = document.createElement("span");
-    bMedium.className = "badge mediumNone";
+    bMedium.className = "badge";
     bMedium.textContent = "人狼:-";
 
     const bVillage = document.createElement("span");
@@ -65,28 +62,27 @@ export function buildRenderer(rootEl, onSlotClick){
 
       // orbs 4 corners
       function makeOrb(pos){
-  const o = document.createElement("div");
-  o.className = `orb ${pos}`;
+        const o = document.createElement("div");
+        o.className = `orb ${pos}`;
 
-  // 下地リング（色だけ）
-  const ring = document.createElement("div");
-  ring.className = "ring";
+        const ring = document.createElement("div");
+        ring.className = "ring";
 
-  // 中心オーブ（色だけ）
-  const core = document.createElement("div");
-  core.className = "core gray";
+        const core = document.createElement("div");
+        core.className = "core gray";
 
-  // 上に重ねる光沢（共通画像1枚）
-  const fx = document.createElement("img");
-  fx.className = "fx";
-  fx.src = "./img/ring_base.png";   // 光と縁取りの画像（透明PNG）
+        // 光/縁取り（上に重ねる画像）
+        const fx = document.createElement("img");
+        fx.className = "fx";
+        fx.alt = "";
+        fx.src = "./img/orb_fx.png";
 
-  o.appendChild(ring);
-  o.appendChild(core);
-  o.appendChild(fx);
+        o.appendChild(ring);
+        o.appendChild(core);
+        o.appendChild(fx);
 
-  return {wrap:o, ring, core, fx};
-}
+        return {wrap:o, ring, core, fx};
+      }
 
       const tl = makeOrb("tl");
       const tr = makeOrb("tr");
@@ -98,10 +94,10 @@ export function buildRenderer(rootEl, onSlotClick){
       slot.appendChild(br.wrap);
       slot.appendChild(bl.wrap);
 
-      // center role
+      // center role (仮：文字)
       const role = document.createElement("div");
       role.className = "role";
-      role.textContent = ""; // View asに応じて差分更新
+      role.textContent = "";
       slot.appendChild(role);
 
       // click
@@ -130,10 +126,9 @@ export function buildRenderer(rootEl, onSlotClick){
   }
 
   function setCore(orbObj, cls, active){
-    const {wrap, core, ring} = orbObj;
+    const {wrap, core} = orbObj;
     wrap.classList.toggle("active", !!active);
     core.className = "core " + cls;
-    // ringは基本灰。公開占い（右下）だけgoldを切り替えるので、ここでは触らない
   }
 
   function setRingPublic(orbObj, isPublic){
@@ -141,29 +136,18 @@ export function buildRenderer(rootEl, onSlotClick){
   }
 
   function update(vm){
-    txtStatus.textContent = vm.status;
-    txtActing.textContent = vm.acting;
-
-    // 不在→OKボタン enable/disable は main 側で設定する（rendererは触らない）
-
-    // log
-    const lines = vm.game.log.slice(-220);
-    logText.textContent = lines.join("\n");
+    if (txtStatus) txtStatus.textContent = vm.status;
+    if (txtActing) txtActing.textContent = vm.acting;
 
     for (const p of vm.players){
-
       const focus = Array.isArray(vm.focusPlayers) ? vm.focusPlayers : [];
       const isFocus = (!vm.humanCanAct) || focus.includes(p.id);
-
-      playerEls[p.id].classList.toggle(
-        "dim",
-        vm.humanCanAct && !isFocus && !vm.game.over
-      );
+      playerEls[p.id].classList.toggle("dim", vm.humanCanAct && !isFocus && !vm.game.over);
 
       headerNameEls[p.id].textContent = p.name;
-      
+
       // badges
-      badgeMediumEls[p.id].className = `badge ${p.mediumClass}` + (p.alive ? "" : " retired");
+      badgeMediumEls[p.id].className = "badge" + (p.alive ? "" : " retired");
       badgeMediumEls[p.id].textContent = `人狼:${(p.mediumVal===null?"-":p.mediumVal)}`;
 
       badgeVillageEls[p.id].className = "badge" + (p.alive ? "" : " retired");
@@ -173,27 +157,18 @@ export function buildRenderer(rootEl, onSlotClick){
         const el = slotEls[p.id][s.idx];
         const roleEl = roleEls[p.id][s.idx];
 
-        // classes
         el.classList.toggle("dead", !!s.dead);
-        el.classList.toggle("disabled", !p.alive); // リタイヤは一括グレー
+        el.classList.toggle("disabled", !p.alive);
         el.classList.toggle("clickable", !!vm.clickable[p.id][s.idx]);
-
-        // selected (枠発光) は「クリック対象を選ぶ」用途で使うので、
-        // guard/invertはオーブで表現する。selectedは“今クリックしてる”用途に残す。
-        el.classList.remove("selected"); // 今は固定で外す（必要なら後で使う）
 
         // role 表示：通常はView as本人だけ / 勝敗確定後は全員オープン
         const revealAll = (vm.game && vm.game.over === true);
         const showRole = revealAll || (p.id === vm.viewAsId);
-
         roleEl.textContent = showRole ? roleChar(s.role) : "";
-        
-        // orbs
-        const orbs = orbEls[p.id][s.idx];
 
-        // ---- 追加：そのプレイヤーが「View as 本人」か ----
+        const orbs = orbEls[p.id][s.idx];
         const isSelfView = (p.id === vm.viewAsId);
-        
+
         // 左上：守り（青）※本人だけ見える
         const guardActive = isSelfView && (typeof p.guardIndex === "number" && p.guardIndex === s.idx);
         setCore(orbs.tl, guardActive ? "guard" : "gray", guardActive);
@@ -201,8 +176,8 @@ export function buildRenderer(rootEl, onSlotClick){
         // 右上：反転（紫）※未発動かつ本人だけ見える
         const invertActive = isSelfView && (!p.madUsed && typeof p.invertIndex === "number" && p.invertIndex === s.idx);
         setCore(orbs.tr, invertActive ? "invert" : "gray", invertActive);
-        
-        // 右下：占い結果（グレー/白/黒）
+
+        // 右下：占い結果（グレー/白/黒）※これは全体公開
         const mark = s.mark;
         if (mark === "WHITE") setCore(orbs.br, "white", true);
         else if (mark === "BLACK") setCore(orbs.br, "black", true);
@@ -217,5 +192,5 @@ export function buildRenderer(rootEl, onSlotClick){
     }
   }
 
-  return { update, btnAbsentOk };
+  return { update };
 }
