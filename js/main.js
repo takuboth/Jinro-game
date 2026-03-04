@@ -18,18 +18,14 @@ function showFatal(err){
   const msg = (err && err.stack) ? err.stack : String(err);
   const s = root.querySelector("#txtStatus");
   const a = root.querySelector("#txtActing");
-  const log = root.querySelector("#logText");
   if (s) s.textContent = "JSエラーで停止";
   if (a) a.textContent = msg.slice(0, 120);
-  if (log) log.textContent = msg;
 }
 
 try {
   const btnNew = root.querySelector("#btnNew");
   const selViewAs = root.querySelector("#selViewAs");
   const btnAbsentOk = root.querySelector("#btnAbsentOk");
-  const btnLog = root.querySelector("#btnLog");
-  const logBox = root.querySelector("#logBox");
 
   const renderer = buildRenderer(root, (playerId, slotIndex) => {
     const vm = deriveViewModel(game, viewAsId);
@@ -49,7 +45,7 @@ try {
   function newGame(){
     game = makeNewGame(null);
     viewAsId = 0;
-    selViewAs.value = "0";
+    if (selViewAs) selViewAs.value = "0";
     runAutoUntilHumanTurn(game);
     render();
   }
@@ -67,15 +63,9 @@ try {
     render();
   });
 
-  if (btnLog && logBox) {
-    btnLog.addEventListener("click", () => {
-      logBox.open = !logBox.open;
-    });
-  }
-
   newGame();
 
 } catch (err) {
   showFatal(err);
-  throw err; // PCで見る時はコンソールにも出る
+  throw err;
 }
