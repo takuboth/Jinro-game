@@ -1,159 +1,144 @@
 import { CONFIG, ROLES, PHASES } from "./config.js";
-import { hasRoleAlive, wolfCount, villageRolesTotal, leftPlayerIndex, rightPlayerIndex } from "./game.js";
+import { wolfCount, villageRolesTotal, hasRoleAlive, leftPlayerIndex, rightPlayerIndex } from "./game.js";
 import { getMark, isPublicSeerSlot } from "./utils.js";
 
 export function roleChar(role){
-  switch(role){
-    case ROLES.WOLF: return "狼";
-    case ROLES.MAD: return "狂";
-    case ROLES.SEER: return "占";
-    case ROLES.MEDIUM: return "霊";
-    case ROLES.GUARD: return "狩";
-    case ROLES.VILLAGER: return "村";
-    default: return "?";
-  }
+  if (role === ROLES.WOLF) return "狼";
+  if (role === ROLES.MAD) return "狂";
+  if (role === ROLES.SEER) return "占";
+  if (role === ROLES.GUARD) return "狩";
+  if (role === ROLES.MEDIUM) return "霊";
+  return "村";
 }
 
 function phaseLabel(phase){
-  return phase;
+  switch (phase){
+    case PHASES.ROUND0_MAD: return "Round0: 狂人設定";
+    case PHASES.ROUND0_GUARD: return "Round0: 狩人守り";
+    case PHASES.SEER: return "占い";
+    case PHASES.LYNCH: return "吊り";
+    case PHASES.MAD: return "狂人設定";
+    case PHASES.GUARD: return "狩人守り";
+    case PHASES.BITE: return "噛み";
+    case PHASES.END: return "終了";
+    default: return String(phase);
+  }
 }
 
 export function deriveViewModel(game, viewAsId){
-  const viewAs = game.players[viewAsId];
-
-  // 霊媒（View as 依存）
-  const mediumAliveForView = hasRoleAlive(viewAs, ROLES.MEDIUM);
-  const mediumArrForView = mediumAliveForView
-    ? game.players.map(p => wolfCount(p))
-    : (viewAs.mediumWolfSnapshot ? viewAs.mediumWolfSnapshot : null);
-
+  const humanId = CONFIG.humanPlayerId;
   const actorId = game.turn;
-  const actor = game.players[actorId];
 
-  // 対象プレイヤー（フェーズ依存）
-  const targetLeft = leftPlayerIndex(game, actorId);
-  const targetRight = rightPlayerIndex(game, actorId);
+  const humanCanAct = (!game.over && actorId === humanId && game.players[humanId].alive);
 
-  const humanCanAct = (!game.over && actorId === CONFIG.humanPlayerId);
-
-  // クリック可能判定（slotごと）
+  // クリック可能マトリクス
   const clickable = Array.from({length:4}, ()=>Array(9).fill(false));
-    // どのプレイヤーが“対象”か（表示用）
-  const focusPlayers = new Set();
 
-  if (humanCanAct) {
-    // 占い・吊りは左、噛みは右
-    if (game.phase === PHASES.SEER || game.phase === PHASES.LYNCH) {
-      if (targetLeft !== null) focusPlayers.add(targetLeft);
-      else focusPlayers.add(actorId);
-    } else if (game.phase === PHASES.BITE) {
-      if (targetRight !== null) focusPlayers.add(targetRight);
-      else focusPlayers.add(actorId);
-    } else {
-      // 狂人/狩人/Round0など：自分（=ターンプレイヤー）
-      focusPlayers.add(actorId);
-    }
+  const left = leftPlayerIndex(game, actorId);
+  const right = rightPlayerIndex(game, actorId);
+
+  // どのプレイヤー枠を明るくするか（対象だけ）
+  let focusPlayers = [];
+
+  if (humanCanAct){
+    if (game.phase === PHASES.SEER || game.phase === PHASES.LYNCH) focusPlayers = (left===null)?[]:[left];
+    else if (game.phase === PHASES.BITE) focusPlayers = (right===null)?[]:[right];
+    else focusPlayers = [actorId];
   }
-  const selected  = Array.from({length:4}, ()=>Array(9).fill(false));
 
-  if (humanCanAct) {
-    if (game.phase === PHASES.ROUND0_MAD || game.phase === PHASES.MAD) {
-      const pl = actor;
-      if (hasRoleAlive(pl, ROLES.MAD) && !pl.madUsed) {
-        for (let i=0;i<9;i++){
-          if (!pl.slots[i].dead) clickable[actorId][i]=true;
-        }
+  // clickable の付与
+  if (humanCanAct){
+    // 自分のターンで、対象プレイヤーのスロットだけクリック可能にする
+    if (game.phase === PHASES.ROUND0_MAD || game.phase === PHASES.MAD){
+      const pl = game.players[actorId];
+      for (let i=0;i<9;i++){
+        clickable[actorId][i] = !pl.slots[i].dead; // DEADは不可
       }
     }
-
-    if (game.phase === PHASES.ROUND0_GUARD || game.phase === PHASES.GUARD) {
-      const pl = actor;
-      if (hasRoleAlive(pl, ROLES.GUARD)) {
-        for (let i=0;i<9;i++){
-          const s = pl.slots[i];
-          if (s.dead) continue;
-          if (s.role === ROLES.GUARD) continue;
-          if (s.role === ROLES.WOLF) continue;
-          clickable[actorId][i]=true;
-        }
+    else if (game.phase === PHASES.ROUND0_GUARD || game.phase === PHASES.GUARD){
+      const pl = game.players[actorId];
+      for (let i=0;i<9;i++){
+        const s = pl.slots[i];
+        clickable[actorId][i] = (!s.dead && s.role !== ROLES.GUARD && s.role !== ROLES.WOLF);
       }
     }
-
-    if (game.phase === PHASES.SEER && hasRoleAlive(actor, ROLES.SEER) && targetLeft !== null) {
-      const tgt = game.players[targetLeft];
-      for (let i=0;i<9;i++) if (!tgt.slots[i].dead) clickable[targetLeft][i]=true;
+    else if (game.phase === PHASES.SEER){
+      if (left !== null){
+        const tgt = game.players[left];
+        for (let i=0;i<9;i++) clickable[left][i] = !tgt.slots[i].dead;
+      }
     }
-
-    if (game.phase === PHASES.LYNCH && targetLeft !== null) {
-      const tgt = game.players[targetLeft];
-      for (let i=0;i<9;i++) if (!tgt.slots[i].dead) clickable[targetLeft][i]=true;
+    else if (game.phase === PHASES.LYNCH){
+      if (left !== null){
+        const tgt = game.players[left];
+        for (let i=0;i<9;i++) clickable[left][i] = !tgt.slots[i].dead;
+      }
     }
-
-    if (game.phase === PHASES.BITE && targetRight !== null) {
-      const tgt = game.players[targetRight];
-      for (let i=0;i<9;i++) if (!tgt.slots[i].dead) clickable[targetRight][i]=true;
+    else if (game.phase === PHASES.BITE){
+      if (right !== null){
+        const tgt = game.players[right];
+        for (let i=0;i<9;i++) clickable[right][i] = !tgt.slots[i].dead;
+      }
     }
   }
 
-  // 選択マーカー（守り/反転は“同一スロット”に出す）
-  // ※反転は未発動のときのみ紫を表示（発動済みは非表示）
-  // ※守りはguardIndexがある限り表示
-  for (const pl of game.players) {
-    if (typeof pl.guardIndex === "number") selected[pl.id][pl.guardIndex] = true; // 使い道はrenderer側（青オーブ）
-    if (!pl.madUsed && typeof pl.invertIndex === "number") selected[pl.id][pl.invertIndex] = true;
+  // 霊媒表示（View as 依存）
+  const viewer = game.players[viewAsId];
+  const viewerHasMediumAlive = hasRoleAlive(viewer, ROLES.MEDIUM);
+  const viewerSnapshot = viewer.mediumWolfSnapshot;
+
+  function mediumValFor(playerId){
+    if (viewerHasMediumAlive) return wolfCount(game.players[playerId]);
+    if (viewerSnapshot && typeof viewerSnapshot[playerId] === "number") return viewerSnapshot[playerId];
+    return null;
   }
-
-  const players = game.players.map(pl => {
-    const mediumVal = mediumArrForView ? mediumArrForView[pl.id] : null;
-    const mediumClass = mediumArrForView
-      ? (mediumAliveForView ? "mediumOn" : "mediumOff")
-      : "mediumNone";
-
-    const villageTotal = villageRolesTotal(pl);
-
-    return {
-      id: pl.id,
-      alive: pl.alive,
-      name: `P${pl.id+1}`,
-      mediumVal,
-      mediumClass,
-      villageTotal,
-
-      // 反転/守りの現在設定
-      invertIndex: pl.invertIndex,
-      madUsed: pl.madUsed,
-      guardIndex: pl.guardIndex,
-
-      // スロット表示用
-      slots: pl.slots.map((s, idx) => ({
-        idx,
-        dead: s.dead,
-        role: s.role,
-        // seer mark (public)
-        mark: getMark(s), // GRAY/WHITE/BLACK
-        // seer公開（リング金）
-        isPublicSeer: isPublicSeerSlot(game, pl.id, idx),
-      })),
-    };
-  });
+  function mediumClass(){
+    if (viewerHasMediumAlive) return "mediumOn";
+    if (viewerSnapshot) return "mediumOff";
+    return "mediumNone";
+  }
 
   const status = game.over
-    ? `終了：勝者 ${game.winners.map(id=>`P${id+1}`).join(", ")}`
-    : `ターンP${actorId+1} / フェーズ：${phaseLabel(game.phase)}`;
+    ? `終了（勝者: ${game.winners.map(id=>`P${id+1}`).join(", ")}）`
+    : phaseLabel(game.phase);
 
-  const acting = game.over ? "-" : (humanCanAct ? "あなたの番" : `P${actorId+1}が行動中…`);
+  const acting = game.over
+    ? ""
+    : `手番: P${actorId+1}`;
+
+  // players view model
+  const players = game.players.map(p => ({
+    id: p.id,
+    name: `P${p.id+1}`,
+    alive: p.alive,
+
+    mediumVal: mediumValFor(p.id),
+    mediumClass: mediumClass(),
+
+    villageTotal: villageRolesTotal(p),
+
+    // guard/invert は renderer 側で “View as 本人だけ表示” するために rawも渡す
+    guardIndex: p.guardIndex,
+    invertIndex: p.invertIndex,
+    madUsed: p.madUsed,
+
+    slots: p.slots.map((s, idx) => ({
+      idx,
+      role: s.role,
+      dead: s.dead,
+      mark: getMark(s),                 // GRAY/WHITE/BLACK
+      isPublicSeer: isPublicSeerSlot(game, p.id, idx),
+    })),
+  }));
 
   return {
     game,
     viewAsId,
+    humanCanAct,
+    focusPlayers,
+    clickable,
     status,
     acting,
     players,
-    clickable,
-    humanCanAct,
-    phase: game.phase,
-    turn: game.turn,
-    selected,
-    focusPlayers: Array.from(focusPlayers),
   };
 }
