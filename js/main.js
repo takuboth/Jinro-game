@@ -1,4 +1,3 @@
-import { CONFIG } from "./config.js";
 import {
   makeNewGame,
   runAutoUntilHumanTurn,
@@ -19,7 +18,7 @@ function showFatal(err){
   const s = root.querySelector("#txtStatus");
   const a = root.querySelector("#txtActing");
   if (s) s.textContent = "JSエラーで停止";
-  if (a) a.textContent = msg.slice(0, 120);
+  if (a) a.textContent = msg.slice(0, 200);
 }
 
 try {
@@ -45,7 +44,7 @@ try {
   function newGame(){
     game = makeNewGame(null);
     viewAsId = 0;
-    if (selViewAs) selViewAs.value = "0";
+    selViewAs.value = "0";
     runAutoUntilHumanTurn(game);
     render();
   }
