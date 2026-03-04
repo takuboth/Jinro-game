@@ -5,15 +5,17 @@
   --appW: 360px;
   --appH: 640px;
 
-  /* スロット/配置 */
+  /* スロット */
   --slotW: 48px;
   --slotH: 72px;
   --slotGap: 6px;
 
-  /* オーブ（外径/内径） */
-  --orbOuter: 12px; /* 外径：12にしたいならここ */
-  --orbCore: 8px;   /* コア外径：8 */
-  --ringW: 2px;     /* リング太さ（12-8=4 → 片側2） */
+  /* オーブ（外径12 / 内径8） */
+  --orbOuter: 12px;
+  --orbCore: 8px;
+
+  /* リング太さ（外径12で見える太さ） */
+  --ringW: 2px;
 
   /* 色 */
   --c-bg: #f6f7fb;
@@ -22,12 +24,13 @@
   --c-text: #222;
   --c-sub: #666;
 
-  --c-gray: #9aa0a6;
-  --c-guard:#2da9ff;
+  --c-gray:  #9aa0a6;
+  --c-guard: #2da9ff;
   --c-invert:#a94dff;
 
   --c-white:#f0f0f0;
   --c-black:#111;
+
   --c-gold:#d4af37;
 
   --hl: rgba(45,169,255,0.35);
@@ -46,10 +49,10 @@ body{
   display:flex;
   align-items:flex-start;
   justify-content:center;
-  padding: 12px;
+  padding:12px;
 }
 
-/* app本体は常に360×640の論理サイズ */
+/* app本体は常に固定 */
 #app{
   width: var(--appW);
   height: var(--appH);
@@ -60,13 +63,18 @@ body{
   position:relative;
 }
 
+/* セーフエリア（必要なら stage に safe クラスを付けて有効化） */
+#stage.safe #app{
+  transform: translateY(env(safe-area-inset-top));
+}
+
 /* ============
    Topbar
 ============ */
 #topbar{
   padding: 10px 10px 8px;
   background:#fff;
-  border-bottom: 1px solid var(--c-line);
+  border-bottom:1px solid var(--c-line);
 }
 .toprow{
   display:flex;
@@ -74,10 +82,7 @@ body{
   justify-content:space-between;
   gap:10px;
 }
-.title{
-  font-weight:700;
-  font-size:14px;
-}
+.title{ font-weight:700; font-size:14px; }
 .controls{
   display:flex;
   gap:6px;
@@ -92,6 +97,7 @@ button{
   padding:6px 10px;
   font-size:12px;
 }
+button.ghost{ background:transparent; }
 button:disabled{ opacity:0.45; }
 
 label.inline{
@@ -108,6 +114,7 @@ select{
   font-size:12px;
   background:#fff;
 }
+
 .statusrow{
   margin-top:6px;
   display:flex;
@@ -131,7 +138,7 @@ select{
   overflow:auto;
 }
 
-/* 2×2 プレイヤー */
+/* 2×2 */
 .players{
   display:grid;
   grid-template-columns: 1fr 1fr;
@@ -149,6 +156,11 @@ select{
   display:flex;
   flex-direction:column;
   gap:6px;
+  min-height: 290px;
+}
+.player.dim{
+  filter: grayscale(100%) brightness(0.92);
+  opacity: 0.75;
 }
 
 .playerHeader{
@@ -157,11 +169,7 @@ select{
   align-items:flex-start;
   gap:8px;
 }
-
-.pname{
-  font-weight:700;
-  font-size:13px;
-}
+.pname{ font-weight:700; font-size:13px; }
 
 .badges{
   display:flex;
@@ -169,7 +177,6 @@ select{
   flex-wrap:wrap;
   justify-content:flex-end;
 }
-
 .badge{
   border:1px solid var(--c-line);
   background:#fff;
@@ -179,19 +186,15 @@ select{
   color:#333;
   white-space:nowrap;
 }
+.badge.mediumOn  { border-color:#222; color:#222; background:#fff; }
+.badge.mediumOff { border-color:#bbb; color:#777; background:#f7f7f7; }
+.badge.mediumNone{ border-color:#ddd; color:#aaa; background:#fafafa; }
 .badge.retired{
   border-color:#ddd;
   color:#aaa;
   background:#fafafa;
 }
 
-/* 対象外プレイヤーの減色 */
-.player.dim{
-  filter: grayscale(100%) brightness(0.92);
-  opacity: 0.75;
-}
-
-/* 3×3 スロット */
 .grid{
   display:grid;
   grid-template-columns: repeat(3, var(--slotW));
@@ -206,37 +209,23 @@ select{
 .slot{
   width: var(--slotW);
   height: var(--slotH);
-
-  background-image: url("../img/slot.svg");
-  background-size: cover;
-
   position:relative;
+  overflow:visible;
 }
 
-/* カード感（内側影） */
-.slot::before{
-  content:"";
-  position:absolute;
-  inset:2px;
-  border-radius:10px;
-  box-shadow:
-    inset 0 1px 0 rgba(255,255,255,0.9),
-    inset 0 -2px 6px rgba(0,0,0,0.06);
-}
-
-/* DEAD / disabled */
+/* DEAD / disabled は同一フィルター */
 .slot.dead,
 .slot.disabled{
   filter: grayscale(100%) brightness(0.80);
 }
 
-/* 選択可能なホバー（PC用） */
+/* クリック対象（PCホバー用） */
 .slot.clickable:hover{
   outline: 2px solid var(--hl);
   outline-offset: 1px;
 }
 
-/* 役職文字（仮） */
+/* 中央（仮：役職1文字） */
 .role{
   position:absolute;
   left:50%;
@@ -255,28 +244,36 @@ select{
   z-index: 2;
 }
 
+/* slotの枠（SVGを最上段） */
+.slotFrame{
+  position:absolute;
+  inset:0;
+  width:100%;
+  height:100%;
+  pointer-events:none;
+  z-index: 5;
+}
+
 /* ============
-   Orbs (4 corners)
-   - 下：CSSでリング色＆コア色
-   - 上：fx画像（光/縁取り）を重ねる
+   Orbs（色はCSS、光は画像）
 ============ */
 .orb{
   position:absolute;
   width: var(--orbOuter);
   height: var(--orbOuter);
   border-radius:50%;
-  overflow:hidden;     /* ← ドット絵のはみ出し対策：ここで切る */
+  overflow:hidden;
   pointer-events:none;
-  z-index: 3;
+  z-index: 4; /* roleより上、slotFrameより下にしたいなら 4 */
 }
 
-/* 角位置：角から3px */
+/* 角から3px */
 .orb.tl{ left:3px; top:3px; }
 .orb.tr{ right:3px; top:3px; }
 .orb.br{ right:3px; bottom:3px; }
 .orb.bl{ left:3px; bottom:3px; }
 
-/* リング（色＋太さ） */
+/* リング下地（色＋太さ） */
 .orb .ring{
   position:absolute;
   inset:0;
@@ -285,36 +282,26 @@ select{
   z-index: 1;
 }
 
-/* 公開占い：リング金 */
+/* 公開占い：リング色だけ金 */
 .orb.public .ring{
   box-shadow: 0 0 0 var(--ringW) rgba(212,175,55,0.98) inset;
 }
 
-/* コア（色） */
+/* 中心コア（色） */
 .orb .core{
   position:absolute;
-  width: var(--orbCore);
-  height: var(--orbCore);
   left:50%;
   top:50%;
   transform: translate(-50%,-50%);
+  width: var(--orbCore);
+  height: var(--orbCore);
   border-radius:50%;
   background: var(--c-gray);
-  opacity: 0.65;
+  opacity: 0.9;
   z-index: 2;
 }
 
-/* 有効時は濃く */
-.orb.active .core{ opacity: 1; }
-
-/* コア色 */
-.core.guard{ background: var(--c-guard); }
-.core.invert{ background: var(--c-invert); }
-.core.gray{ background: var(--c-gray); }
-.core.white{ background: var(--c-white); box-shadow: inset 0 0 0 1px rgba(0,0,0,0.15); }
-.core.black{ background: var(--c-black); }
-
-/* 光・縁取り（上に重ねる画像） */
+/* 光（ツヤ）画像：ドット絵のはみ出し対策で “orb側は隠す” */
 .orb .fx{
   position:absolute;
   inset:0;
@@ -323,7 +310,11 @@ select{
   object-fit:cover;
   pointer-events:none;
   z-index: 3;
-
-  /* ドット絵の見え方を優先したいなら pixelated にする */
-  image-rendering: pixelated;
 }
+
+/* コア色クラス */
+.core.guard{ background: var(--c-guard); }
+.core.invert{ background: var(--c-invert); }
+.core.gray{ background: var(--c-gray); }
+.core.white{ background: var(--c-white); box-shadow: inset 0 0 0 1px rgba(0,0,0,0.15); }
+.core.black{ background: var(--c-black); }
