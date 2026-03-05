@@ -4,8 +4,27 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
   <title>Werewolf Slots</title>
+
+  <!-- ★CSSは /css に入れてる前提 -->
   <link rel="stylesheet" href="./css/style.css" />
+
+  <!-- ★モジュールが落ちた時でも、画面にエラーを出す -->
+  <script>
+    window.addEventListener("error", (e) => {
+      const s = document.getElementById("txtStatus");
+      const a = document.getElementById("txtActing");
+      if (s) s.textContent = "JSエラー";
+      if (a) a.textContent = (e && e.message) ? e.message : String(e);
+    });
+    window.addEventListener("unhandledrejection", (e) => {
+      const s = document.getElementById("txtStatus");
+      const a = document.getElementById("txtActing");
+      if (s) s.textContent = "Promiseエラー";
+      if (a) a.textContent = (e && e.reason) ? String(e.reason) : "unhandledrejection";
+    });
+  </script>
 </head>
+
 <body>
   <div id="stage">
     <div id="app">
@@ -30,7 +49,7 @@
         </div>
 
         <div class="statusrow">
-          <div id="txtStatus">---</div>
+          <div id="txtStatus">boot...</div>
           <div id="txtActing">---</div>
         </div>
       </header>
@@ -41,6 +60,7 @@
     </div>
   </div>
 
+  <!-- ★JSは /js に入れてる前提。絶対パス(/js/)はやめて相対に統一 -->
   <script type="module" src="./js/main.js"></script>
 </body>
 </html>
