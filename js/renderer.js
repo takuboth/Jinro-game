@@ -1,16 +1,13 @@
-// /js/renderer.js（10倍きれい：DOMは初回に固定生成、更新は差分だけ）
-// 画像パス：
-// - 役職アイコン： /img/roles/<roleKey>.svg
-// - オーブ光沢：   /img/orb_fx.png  （1枚でOK。透過の縁＋光だけのやつ）
+// /js/renderer.js（役職は文字のみ、DOM固定生成で描画は差分更新＝見た目も動作も安定）
 export function buildRenderer(root, onPick){
   const playersEl = root.querySelector("#players");
   const txtStatus = root.querySelector("#txtStatus");
   const txtActing = root.querySelector("#txtActing");
 
   const playerCards = [];
-  const slotEls = []; // [playerId][slotIndex] -> el
+  const slotEls = []; // [playerId][slotIndex]
 
-  // クリックはイベント委譲（slot.clickableのみ反応）
+  // クリックは委譲（slot.clickableだけ）
   playersEl.addEventListener("click", (ev) => {
     const slot = ev.target.closest?.(".slot.clickable");
     if (!slot) return;
@@ -19,7 +16,7 @@ export function buildRenderer(root, onPick){
     onPick(p, s);
   });
 
-  // ====== 初期DOM固定生成（4人×9スロット） ======
+  // 初期DOM（4人×9）
   for (let p = 0; p < 4; p++){
     const card = document.createElement("section");
     card.className = "player";
@@ -49,26 +46,17 @@ export function buildRenderer(root, onPick){
       slot.dataset.playerId = String(p);
       slot.dataset.slotIndex = String(i);
 
-      // 4 corners orbs
+      // orbs
       slot.appendChild(makeOrb("tl"));
       slot.appendChild(makeOrb("tr"));
       slot.appendChild(makeOrb("br"));
       slot.appendChild(makeOrb("bl"));
 
-      // role text fallback
+      // role text
       const roleText = document.createElement("div");
       roleText.className = "role";
       roleText.textContent = "";
       slot.appendChild(roleText);
-
-      // role icon (top)
-      const roleIcon = document.createElement("div");
-      roleIcon.className = "roleIcon";
-      const img = document.createElement("img");
-      img.alt = "";
-      img.loading = "lazy";
-      roleIcon.appendChild(img);
-      slot.appendChild(roleIcon);
 
       grid.appendChild(slot);
       slotEls[p][i] = slot;
@@ -78,30 +66,21 @@ export function buildRenderer(root, onPick){
     card.appendChild(grid);
     playersEl.appendChild(card);
 
-    playerCards.push({
-      card,
-      nameEl: name,
-      badgesEl: badges
-    });
+    playerCards.push({ card, nameEl: name, badgesEl: badges });
   }
 
-  // ====== update(vm) ======
   function update(vm){
-    // status
     if (txtStatus) txtStatus.textContent = pick(vm, ["statusText","status","phaseText"], "---");
     if (txtActing) txtActing.textContent = pick(vm, ["actingText","acting","turnText"], "---");
 
-    // players
     const vPlayers = pick(vm, ["players"], []);
     for (let p = 0; p < playerCards.length; p++){
       const vPl = vPlayers[p] || {};
       const pc = playerCards[p];
 
       pc.card.classList.toggle("dim", !!pick(vPl, ["dim","isDim","retired"], false));
-
       pc.nameEl.textContent = pick(vPl, ["name","title","label"], `P${p+1}`);
 
-      // badges（配列でも文字列でもOK）
       pc.badgesEl.replaceChildren();
       const b = pick(vPl, ["badges"], []);
       const badgeArr = Array.isArray(b) ? b : (b ? [String(b)] : []);
@@ -112,7 +91,6 @@ export function buildRenderer(root, onPick){
         pc.badgesEl.appendChild(bd);
       }
 
-      // slots
       const vSlots = pick(vPl, ["slots"], []);
       for (let i = 0; i < 9; i++){
         const vS = vSlots[i] || {};
@@ -128,33 +106,14 @@ export function buildRenderer(root, onPick){
         el.classList.toggle("clickable", clickable && !dead && !disabled);
         el.classList.toggle("selected", selected && !dead && !disabled);
 
-        // role label (text fallback)
+        // 役職文字
         const roleText = el.querySelector(":scope > .role");
         if (roleText){
           roleText.textContent = pick(vS, ["roleText","text","label","roleChar"], "");
         }
 
-        // role icon
-        const roleKey = pick(vS, ["roleKey","role","roleId"], null);
-        const roleImg = el.querySelector(":scope > .roleIcon > img");
-        if (roleImg){
-          if (roleKey){
-            roleImg.src = `/img/roles/${roleKey}.svg`;
-            roleImg.style.display = "block";
-            if (roleText) roleText.style.display = "none";
-          } else {
-            roleImg.removeAttribute("src");
-            roleImg.style.display = "none";
-            if (roleText) roleText.style.display = "";
-          }
-        }
-
-        // orbs（cornerごと：vmにcorner指定が無い場合でも最低限動く）
-        // 期待形：
-        // vS.orbs = { tl:{core:"guard",active:true,public:false}, ... }
-        // あるいは vS.tl / vS.tr... を直接持っててもOK
+        // オーブ（vmにorbsがなければ薄い灰で出す）
         const orbs = pick(vS, ["orbs"], null);
-
         applyOrb(el, "tl", orbs ? orbs.tl : pick(vS, ["tl"], null));
         applyOrb(el, "tr", orbs ? orbs.tr : pick(vS, ["tr"], null));
         applyOrb(el, "br", orbs ? orbs.br : pick(vS, ["br"], null));
@@ -165,7 +124,6 @@ export function buildRenderer(root, onPick){
 
   return { update };
 
-  // ====== helpers ======
   function makeOrb(pos){
     const orb = document.createElement("div");
     orb.className = `orb ${pos}`;
@@ -176,15 +134,8 @@ export function buildRenderer(root, onPick){
     const core = document.createElement("div");
     core.className = "core gray";
 
-    const fx = document.createElement("img");
-    fx.className = "fx";
-    fx.alt = "";
-    fx.loading = "lazy";
-    fx.src = "/img/orb_fx.png"; // 透過の「光＋縁取り」だけ
-
     orb.appendChild(ring);
     orb.appendChild(core);
-    orb.appendChild(fx);
     return orb;
   }
 
@@ -192,7 +143,6 @@ export function buildRenderer(root, onPick){
     const orb = slotEl.querySelector(`:scope > .orb.${pos}`);
     if (!orb) return;
 
-    // dataが無いなら「薄い灰」で固定（表示だけはする）
     const active = !!(data && pick(data, ["active","on","enabled"], false));
     const isPublic = !!(data && pick(data, ["public","isPublic"], false));
     const coreKind = data ? pick(data, ["core","kind","type","color"], "gray") : "gray";
@@ -203,7 +153,6 @@ export function buildRenderer(root, onPick){
     const core = orb.querySelector(":scope > .core");
     if (core){
       core.className = `core ${coreKind || "gray"}`;
-      // active以外でも薄く見せたい場合はCSSで .core{opacity:0.65} を維持
     }
   }
 
