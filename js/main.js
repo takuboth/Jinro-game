@@ -6,8 +6,8 @@ import {
   doAbsentOk
 } from "./game.js";
 
-// import { deriveViewModel } from "./viewModel.js";
-// import { buildRenderer } from "./renderer.js";
+import { deriveViewModel } from "./viewModel.js";
+import { buildRenderer } from "./renderer.js";
 
 let game = null;
 let viewAsId = 0;
