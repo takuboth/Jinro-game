@@ -1,3 +1,5 @@
+// /js/main.js（パスは /js 配下前提：importは相対でOK）
+import { CONFIG } from "./config.js";
 import {
   makeNewGame,
   runAutoUntilHumanTurn,
