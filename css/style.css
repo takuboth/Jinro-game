@@ -231,17 +231,14 @@ select{
   display:flex;
   align-items:center;
   justify-content:center;
-
-  font-size: 28px;
-  font-weight: 800;
+  font-size:28px;
+  font-weight:800;
   line-height:1;
-
-  color: #111;                 /* ← 明示 */
-  text-shadow: 0 1px 0 #fff;   /* ← 背景が薄いので */
+  color:#111;
+  text-shadow: 0 1px 0 #fff;
   user-select:none;
   pointer-events:none;
-
-  z-index: 50;                 /* ← ここ重要：何より前 */
+  z-index: 50;
 }
 /* ============
    Orbs（4隅：色だけ）
