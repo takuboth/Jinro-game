@@ -1,13 +1,24 @@
-// /js/renderer.js（役職は文字のみ、DOM固定生成で描画は差分更新＝見た目も動作も安定）
+// /js/renderer.js
 export function buildRenderer(root, onPick){
   const playersEl = root.querySelector("#players");
   const txtStatus = root.querySelector("#txtStatus");
   const txtActing = root.querySelector("#txtActing");
 
   const playerCards = [];
-  const slotEls = []; // [playerId][slotIndex]
+  const slotEls = [];   // [playerId][slotIndex]
+  const roleEls = [];   // [playerId][slotIndex]
+  const orbEls = [];    // [playerId][slotIndex] -> { tl,tr,br,bl }
 
-  // クリックは委譲（slot.clickableだけ）
+  function roleChar(role){
+    if (role === "WOLF") return "狼";
+    if (role === "MAD") return "狂";
+    if (role === "SEER") return "占";
+    if (role === "GUARD") return "狩";
+    if (role === "MEDIUM") return "霊";
+    if (role === "VILLAGER") return "村";
+    return "";
+  }
+
   playersEl.addEventListener("click", (ev) => {
     const slot = ev.target.closest?.(".slot.clickable");
     if (!slot) return;
@@ -16,7 +27,7 @@ export function buildRenderer(root, onPick){
     onPick(p, s);
   });
 
-  // 初期DOM（4人×9）
+  // 初期DOM固定生成
   for (let p = 0; p < 4; p++){
     const card = document.createElement("section");
     card.className = "player";
@@ -32,6 +43,17 @@ export function buildRenderer(root, onPick){
     const badges = document.createElement("div");
     badges.className = "badges";
 
+    const wolfBadge = document.createElement("span");
+    wolfBadge.className = "badge mediumNone";
+    wolfBadge.textContent = "人狼:-";
+
+    const villageBadge = document.createElement("span");
+    villageBadge.className = "badge";
+    villageBadge.textContent = "村役:-";
+
+    badges.appendChild(wolfBadge);
+    badges.appendChild(villageBadge);
+
     header.appendChild(name);
     header.appendChild(badges);
 
@@ -39,6 +61,8 @@ export function buildRenderer(root, onPick){
     grid.className = "grid";
 
     slotEls[p] = [];
+    roleEls[p] = [];
+    orbEls[p] = [];
 
     for (let i = 0; i < 9; i++){
       const slot = document.createElement("div");
@@ -46,78 +70,114 @@ export function buildRenderer(root, onPick){
       slot.dataset.playerId = String(p);
       slot.dataset.slotIndex = String(i);
 
-      // orbs
-      slot.appendChild(makeOrb("tl"));
-      slot.appendChild(makeOrb("tr"));
-      slot.appendChild(makeOrb("br"));
-      slot.appendChild(makeOrb("bl"));
+      const tl = makeOrb("tl");
+      const tr = makeOrb("tr");
+      const br = makeOrb("br");
+      const bl = makeOrb("bl");
 
-      // role text
+      slot.appendChild(tl.wrap);
+      slot.appendChild(tr.wrap);
+      slot.appendChild(br.wrap);
+      slot.appendChild(bl.wrap);
+
       const roleText = document.createElement("div");
       roleText.className = "role";
       roleText.textContent = "";
       slot.appendChild(roleText);
 
       grid.appendChild(slot);
+
       slotEls[p][i] = slot;
+      roleEls[p][i] = roleText;
+      orbEls[p][i] = { tl, tr, br, bl };
     }
 
     card.appendChild(header);
     card.appendChild(grid);
     playersEl.appendChild(card);
 
-    playerCards.push({ card, nameEl: name, badgesEl: badges });
+    playerCards.push({
+      card,
+      nameEl: name,
+      wolfBadgeEl: wolfBadge,
+      villageBadgeEl: villageBadge
+    });
   }
 
   function update(vm){
-    if (txtStatus) txtStatus.textContent = pick(vm, ["statusText","status","phaseText"], "---");
-    if (txtActing) txtActing.textContent = pick(vm, ["actingText","acting","turnText"], "---");
+    if (txtStatus) txtStatus.textContent = vm.status ?? "---";
+    if (txtActing) txtActing.textContent = vm.acting ?? "---";
 
-    const vPlayers = pick(vm, ["players"], []);
-    for (let p = 0; p < playerCards.length; p++){
-      const vPl = vPlayers[p] || {};
+    const players = vm.players ?? [];
+
+    for (let p = 0; p < 4; p++){
+      const vPl = players[p];
+      if (!vPl) continue;
+
       const pc = playerCards[p];
 
-      pc.card.classList.toggle("dim", !!pick(vPl, ["dim","isDim","retired"], false));
-      pc.nameEl.textContent = pick(vPl, ["name","title","label"], `P${p+1}`);
+      const focus = Array.isArray(vm.focusPlayers) ? vm.focusPlayers : [];
+      const isFocus = (!vm.humanCanAct) || focus.includes(vPl.id);
+      pc.card.classList.toggle("dim", vm.humanCanAct && !isFocus && !vm.game.over);
 
-      pc.badgesEl.replaceChildren();
-      const b = pick(vPl, ["badges"], []);
-      const badgeArr = Array.isArray(b) ? b : (b ? [String(b)] : []);
-      for (const t of badgeArr){
-        const bd = document.createElement("span");
-        bd.className = "badge";
-        bd.textContent = t;
-        pc.badgesEl.appendChild(bd);
-      }
+      pc.nameEl.textContent = vPl.name ?? `P${p+1}`;
 
-      const vSlots = pick(vPl, ["slots"], []);
+      pc.wolfBadgeEl.className = `badge ${vPl.mediumClass || "mediumNone"}` + (vPl.alive ? "" : " retired");
+      pc.wolfBadgeEl.textContent = `人狼:${vPl.mediumVal == null ? "-" : vPl.mediumVal}`;
+
+      pc.villageBadgeEl.className = "badge" + (vPl.alive ? "" : " retired");
+      pc.villageBadgeEl.textContent = `村役:${vPl.villageTotal ?? "-"}`;
+
+      const slots = vPl.slots ?? [];
       for (let i = 0; i < 9; i++){
-        const vS = vSlots[i] || {};
-        const el = slotEls[p][i];
+        const vS = slots[i];
+        if (!vS) continue;
 
-        const dead = !!pick(vS, ["dead","isDead"], false);
-        const disabled = !!pick(vS, ["disabled","isDisabled"], false);
-        const clickable = !!pick(vS, ["clickable","canPick","pickable"], false);
-        const selected = !!pick(vS, ["selected","isSelected"], false);
+        const el = slotEls[p][i];
+        const roleEl = roleEls[p][i];
+        const orbs = orbEls[p][i];
+
+        const dead = !!vS.dead;
+        const disabled = !vPl.alive;
+        const clickable = !!(vm.clickable?.[p]?.[i]);
 
         el.classList.toggle("dead", dead);
         el.classList.toggle("disabled", disabled);
         el.classList.toggle("clickable", clickable && !dead && !disabled);
-        el.classList.toggle("selected", selected && !dead && !disabled);
+        el.classList.remove("selected");
 
-        // 役職文字
-        const roleText = el.querySelector(":scope > .role");
-        if (roleText){
-          roleText.textContent = pick(vS, ["roleText","text","label","roleChar"], "");
-        }
+        // 役職表示：通常はView as本人だけ / 勝敗確定後は全員オープン
+        const revealAll = !!(vm.game && vm.game.over === true);
+        const showRole = revealAll || (p === vm.viewAsId);
+        roleEl.textContent = showRole ? roleChar(vS.role) : "";
 
-        // オーブ（vmにorbsがなければ薄い灰で出す）
-        const orbs = pick(vS, ["orbs"], null);
-        applyOrb(el, "tl", orbs ? orbs.tl : pick(vS, ["tl"], null));
-        applyOrb(el, "tr", orbs ? orbs.tr : pick(vS, ["tr"], null));
-        applyOrb(el, "br", orbs ? orbs.br : pick(vS, ["br"], null));
-        applyOrb(el, "bl", orbs ? orbs.bl : pick(vS, ["bl"], null));
+        // 左上：守り（本人だけ）
+        const guardActive =
+          (p === vm.viewAsId) &&
+          (typeof vPl.guardIndex === "number") &&
+          (vPl.guardIndex === i);
+
+        setCore(orbs.tl, guardActive ? "guard" : "gray", guardActive);
+
+        // 右上：反転（未発動かつ本人だけ）
+        const invertActive =
+          (p === vm.viewAsId) &&
+          (!vPl.madUsed) &&
+          (typeof vPl.invertIndex === "number") &&
+          (vPl.invertIndex === i);
+
+        setCore(orbs.tr, invertActive ? "invert" : "gray", invertActive);
+
+        // 右下：占い結果
+        if (vS.mark === "WHITE") setCore(orbs.br, "white", true);
+        else if (vS.mark === "BLACK") setCore(orbs.br, "black", true);
+        else setCore(orbs.br, "gray", false);
+
+        // 公開占い：リング金
+        setPublic(orbs.br, !!vS.isPublicSeer);
+
+        // 左下：未使用
+        setCore(orbs.bl, "gray", false);
       }
     }
   }
@@ -125,8 +185,8 @@ export function buildRenderer(root, onPick){
   return { update };
 
   function makeOrb(pos){
-    const orb = document.createElement("div");
-    orb.className = `orb ${pos}`;
+    const wrap = document.createElement("div");
+    wrap.className = `orb ${pos}`;
 
     const ring = document.createElement("div");
     ring.className = "ring";
@@ -134,32 +194,18 @@ export function buildRenderer(root, onPick){
     const core = document.createElement("div");
     core.className = "core gray";
 
-    orb.appendChild(ring);
-    orb.appendChild(core);
-    return orb;
+    wrap.appendChild(ring);
+    wrap.appendChild(core);
+
+    return { wrap, ring, core };
   }
 
-  function applyOrb(slotEl, pos, data){
-    const orb = slotEl.querySelector(`:scope > .orb.${pos}`);
-    if (!orb) return;
-
-    const active = !!(data && pick(data, ["active","on","enabled"], false));
-    const isPublic = !!(data && pick(data, ["public","isPublic"], false));
-    const coreKind = data ? pick(data, ["core","kind","type","color"], "gray") : "gray";
-
-    orb.classList.toggle("active", active);
-    orb.classList.toggle("public", isPublic);
-
-    const core = orb.querySelector(":scope > .core");
-    if (core){
-      core.className = `core ${coreKind || "gray"}`;
-    }
+  function setCore(orbObj, cls, active){
+    orbObj.wrap.classList.toggle("active", !!active);
+    orbObj.core.className = "core " + cls;
   }
 
-  function pick(obj, keys, fallback=null){
-    for (const k of keys){
-      if (obj && Object.prototype.hasOwnProperty.call(obj, k) && obj[k] !== undefined) return obj[k];
-    }
-    return fallback;
+  function setPublic(orbObj, isPublic){
+    orbObj.wrap.classList.toggle("public", !!isPublic);
   }
 }
