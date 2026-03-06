@@ -12,7 +12,7 @@
 
   --slotW: 48px;
   --slotH: 72px;
-  --slotGap: 6px;
+  --slotGap: 5px;
 
   /* オーブ */
   --orbOuter: 12px;
@@ -52,7 +52,7 @@ body{
   display: flex;
   align-items: flex-start;
   justify-content: center;
-  padding: 12px;
+  padding: 6px;   /* 12 → 6 */
 }
 
 #app{
@@ -148,18 +148,16 @@ select{
    Board
 ============ */
 #board{
-  height: calc(var(--appH) - 62px);
-  padding: 8px;
+  padding: 6px;     /* 8 → 6 */
   display: flex;
   flex-direction: column;
-  gap: 10px;
-  overflow: auto;
+  gap: 8px;         /* 10 → 8 */
 }
 
 .players{
   display: grid;
   grid-template-columns: 1fr 1fr;
-  gap: 8px;
+  gap: 6px;   /* 8 → 6 */
 }
 
 /* ============
@@ -169,11 +167,10 @@ select{
   background: var(--c-panel);
   border: 1px solid var(--c-line);
   border-radius: 14px;
-  padding: 8px;
+  padding: 6px;   /* 8 → 6 */
   display: flex;
   flex-direction: column;
   gap: 6px;
-  min-height: 290px;
 }
 
 .player.dim{
