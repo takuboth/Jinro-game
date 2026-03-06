@@ -5,9 +5,9 @@ export function buildRenderer(root, onPick){
   const txtActing = root.querySelector("#txtActing");
 
   const playerCards = [];
-  const slotEls = [];   // [playerId][slotIndex]
-  const roleEls = [];   // [playerId][slotIndex]
-  const orbEls = [];    // [playerId][slotIndex] -> { tl,tr,br,bl }
+  const slotEls = [];
+  const roleEls = [];
+  const orbEls = [];
 
   function roleChar(role){
     if (role === "WOLF") return "狼";
@@ -27,7 +27,6 @@ export function buildRenderer(root, onPick){
     onPick(p, s);
   });
 
-  // 初期DOM固定生成
   for (let p = 0; p < 4; p++){
     const card = document.createElement("section");
     card.className = "player";
@@ -79,6 +78,13 @@ export function buildRenderer(root, onPick){
       slot.appendChild(tr.wrap);
       slot.appendChild(br.wrap);
       slot.appendChild(bl.wrap);
+
+      // オーブの上、文字の下に入るスロット画像
+      const frame = document.createElement("img");
+      frame.className = "slotFrame";
+      frame.src = "./img/slot.svg";
+      frame.alt = "";
+      slot.appendChild(frame);
 
       const roleText = document.createElement("div");
       roleText.className = "role";
@@ -146,12 +152,10 @@ export function buildRenderer(root, onPick){
         el.classList.toggle("clickable", clickable && !dead && !disabled);
         el.classList.remove("selected");
 
-        // 役職表示：通常はView as本人だけ / 勝敗確定後は全員オープン
         const revealAll = !!(vm.game && vm.game.over === true);
         const showRole = revealAll || (p === vm.viewAsId);
         roleEl.textContent = showRole ? roleChar(vS.role) : "";
 
-        // 左上：守り（本人だけ）
         const guardActive =
           (p === vm.viewAsId) &&
           (typeof vPl.guardIndex === "number") &&
@@ -159,7 +163,6 @@ export function buildRenderer(root, onPick){
 
         setCore(orbs.tl, guardActive ? "guard" : "gray", guardActive);
 
-        // 右上：反転（未発動かつ本人だけ）
         const invertActive =
           (p === vm.viewAsId) &&
           (!vPl.madUsed) &&
@@ -168,15 +171,12 @@ export function buildRenderer(root, onPick){
 
         setCore(orbs.tr, invertActive ? "invert" : "gray", invertActive);
 
-        // 右下：占い結果
         if (vS.mark === "WHITE") setCore(orbs.br, "white", true);
         else if (vS.mark === "BLACK") setCore(orbs.br, "black", true);
         else setCore(orbs.br, "gray", false);
 
-        // 公開占い：リング金
         setPublic(orbs.br, !!vS.isPublicSeer);
 
-        // 左下：未使用
         setCore(orbs.bl, "gray", false);
       }
     }
