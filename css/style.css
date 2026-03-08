@@ -184,7 +184,18 @@ select{
   align-items: flex-start;
   gap: 8px;
 }
+.playerHeader{
+  position: relative;
+}
 
+.playerResult{
+  position: absolute;
+  right: 0;
+  top: 0;
+  font-size: 12px;
+  font-weight: 700;
+  pointer-events: none;
+}
 .pname{
   font-weight: 700;
   font-size: 13px;
