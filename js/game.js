@@ -165,7 +165,7 @@ function checkWinnersAndEndIfAny(game) {
     game.winners = alive.map(p => p.id);
     game.over = true;
     game.phase = PHASES.END;
-    logPush(game, `勝利確定（村人全滅） → 勝者: ${alive.map(id => `P${id + 1}`).join(", ")}`);
+    logPush(game, `勝利確定（村人全滅） → 勝者: ${alive.map(p => `P${p.id + 1}`).join(", ")}`);
     return;
   }
 
