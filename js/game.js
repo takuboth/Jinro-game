@@ -185,7 +185,25 @@ function checkWinnersAndEndIfAny(game) {
 
 function updateAfterKill(game) {
   retireIfWolfZero(game);
-  checkWinnersAndEndIfAny(game);
+}
+
+function checkWinnersAfterBite(game) {
+  const alive = game.players.filter(p => p.alive);
+  if (alive.length === 0) return;
+
+  const winners = alive
+    .filter(pl => {
+      const aliveSlots = pl.slots.filter(s => !s.dead);
+      return aliveSlots.length > 0 && aliveSlots.every(s => s.role === ROLES.WOLF);
+    })
+    .map(pl => pl.id);
+
+  if (winners.length > 0) {
+    game.winners = winners;
+    game.over = true;
+    game.phase = PHASES.END;
+    logPush(game, `勝利確定（噛み後判定） → 勝者: ${winners.map(id => `P${id + 1}`).join(", ")}`);
+  }
 }
 
 export function advanceRound0(game) {
@@ -358,9 +376,33 @@ export function resolveGuard(game, actorId, slotIndex) {
 export function resolveBite(game, actorId, targetId, slotIndex) {
   if (targetId === null) {
     logPush(game, `P${actorId + 1} 噛み → 対象なし（生存者1人）なのでスキップ`);
-    advancePhase(game);
+    checkWinnersAfterBite(game);
+    if (!game.over) advancePhase(game);
     return;
   }
+
+  const target = game.players[targetId];
+  const slot = target.slots[slotIndex];
+  if (slot.dead) return;
+
+  const isWolf = (slot.role === ROLES.WOLF);
+  const isGuarded = (target.guardIndex === slotIndex);
+
+  game.biteNo += 1;
+
+  if (isWolf || isGuarded) {
+    slot.biteFailCount += 1;
+    slot.biteFailTurn = game.biteNo;
+    logPush(game, `P${actorId + 1} 噛み → P${targetId + 1} S${slotIndex + 1}（不発：理由は非公開）`);
+  } else {
+    killSlot(game, targetId, slotIndex);
+    logPush(game, `P${actorId + 1} 噛み → P${targetId + 1} S${slotIndex + 1}（DEAD：理由は非公開）`);
+    updateAfterKill(game);
+  }
+
+  checkWinnersAfterBite(game);
+  if (!game.over) advancePhase(game);
+}
 
   const target = game.players[targetId];
   const slot = target.slots[slotIndex];
