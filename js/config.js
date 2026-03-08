@@ -29,5 +29,10 @@ export const PHASES = {
 export const CONFIG = {
   humanPlayerId: 0,
   autoPlayers: true,
-  autoSafetySteps: 999,
+  autoSafetySteps: 100,
+
+  // 追加
+  cpuOnlineLike: true,      // true: 演出あり / false: 即時
+  cpuThinkMsMin: 450,
+  cpuThinkMsMax: 900,
 };
