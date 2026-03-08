@@ -85,4 +85,33 @@ function sleep(ms){
 function randInt(min, max){
   return Math.floor(Math.random() * (max - min + 1)) + min;
 }
+async function runCpuTurnsWithMode() {
+  if (!CONFIG.autoPlayers) return;
+
+  // 即時モード
+  if (!CONFIG.cpuOnlineLike) {
+    runAutoUntilHumanTurn(game);
+    render();
+    return;
+  }
+
+  // 演出ありモード
+  let steps = 0;
+  while (!game.over && game.phase !== PHASES.END && !isHumanTurn(game)) {
+    steps += 1;
+    if (steps > CONFIG.autoSafetySteps) {
+      logPush(game, `自動停止: safetySteps超過（無限ループ防止）`);
+      break;
+    }
+
+    renderThinkingStatus();  // 後で作る
+    await sleep(randInt(CONFIG.cpuThinkMsMin, CONFIG.cpuThinkMsMax));
+
+    cpuDoOneImmediate(game);
+    render();
+
+    // 手ごとに少しだけ見せる間
+    await sleep(180);
+  }
+}
 boot();
