@@ -50,21 +50,17 @@ export function buildRenderer(root, onPick){
     villageBadge.className = "badge";
     villageBadge.textContent = "村役:-";
 
-    if (!vPl.alive && vPl.escaped) {
-      pc.resultEl.textContent = "WIN";
-    }
-    else if (!vPl.alive) {
-      pc.resultEl.textContent = "LOSE";
-    }
-    else {
-      pc.resultEl.textContent = "";
-    }
-    
+    // 追加: WIN / LOSE 表示
+    const resultEl = document.createElement("div");
+    resultEl.className = "playerResult";
+    resultEl.textContent = "";
+
     badges.appendChild(wolfBadge);
     badges.appendChild(villageBadge);
 
     header.appendChild(name);
     header.appendChild(badges);
+    header.appendChild(resultEl);
 
     const grid = document.createElement("div");
     grid.className = "grid";
@@ -98,11 +94,7 @@ export function buildRenderer(root, onPick){
 
       const roleText = document.createElement("div");
       roleText.className = "role";
-      if (slot.revealRole) {
-        txtRole.textContent = roleChar(slot.role);
-      } else {
-        txtRole.textContent = "";
-      }
+      roleText.textContent = "";
       slot.appendChild(roleText);
 
       grid.appendChild(slot);
@@ -120,7 +112,8 @@ export function buildRenderer(root, onPick){
       card,
       nameEl: name,
       wolfBadgeEl: wolfBadge,
-      villageBadgeEl: villageBadge
+      villageBadgeEl: villageBadge,
+      resultEl,
     });
   }
 
@@ -147,6 +140,15 @@ export function buildRenderer(root, onPick){
 
       pc.villageBadgeEl.className = "badge" + (vPl.alive ? "" : " retired");
       pc.villageBadgeEl.textContent = `村役:${vPl.villageTotal ?? "-"}`;
+
+      // WIN / LOSE 表示
+      if (!vPl.alive && vPl.escaped) {
+        pc.resultEl.textContent = "WIN";
+      } else if (!vPl.alive) {
+        pc.resultEl.textContent = "LOSE";
+      } else {
+        pc.resultEl.textContent = "";
+      }
 
       const slots = vPl.slots ?? [];
       for (let i = 0; i < 9; i++){
