@@ -50,6 +50,16 @@ export function buildRenderer(root, onPick){
     villageBadge.className = "badge";
     villageBadge.textContent = "村役:-";
 
+    if (!vPl.alive && vPl.escaped) {
+      pc.resultEl.textContent = "WIN";
+    }
+    else if (!vPl.alive) {
+      pc.resultEl.textContent = "LOSE";
+    }
+    else {
+      pc.resultEl.textContent = "";
+    }
+    
     badges.appendChild(wolfBadge);
     badges.appendChild(villageBadge);
 
@@ -88,7 +98,11 @@ export function buildRenderer(root, onPick){
 
       const roleText = document.createElement("div");
       roleText.className = "role";
-      roleText.textContent = "";
+      if (slot.revealRole) {
+        txtRole.textContent = roleChar(slot.role);
+      } else {
+        txtRole.textContent = "";
+      }
       slot.appendChild(roleText);
 
       grid.appendChild(slot);
@@ -153,7 +167,8 @@ export function buildRenderer(root, onPick){
         el.classList.remove("selected");
 
         const revealAll = !!(vm.game && vm.game.over === true);
-        const showRole = revealAll || (p === vm.viewAsId);
+        const revealPlayer = !vPl.alive;
+        const showRole = revealAll || revealPlayer || (p === vm.viewAsId);
         roleEl.textContent = showRole ? roleChar(vS.role) : "";
 
         const guardActive =
