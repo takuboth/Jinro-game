@@ -350,7 +350,36 @@ export function resolveGuard(game, actorId, slotIndex) {
   logPush(game, `P${actorId + 1} 狩人守り設定 → 設定完了（非公開）`);
   advancePhase(game);
 }
+export function resolveBite(game, actorId, targetId, slotIndex) {
+  if (targetId === null) {
+    logPush(game, `P${actorId + 1} 噛み → 対象なし（生存者1人）なのでスキップ`);
+    checkWinnersAfterBite(game);
+    if (!game.over) advancePhase(game);
+    return;
+  }
 
+  const target = game.players[targetId];
+  const slot = target.slots[slotIndex];
+  if (slot.dead) return;
+
+  const isWolf = (slot.role === ROLES.WOLF);
+  const isGuarded = (target.guardIndex === slotIndex);
+
+  game.biteNo += 1;
+
+  if (isWolf || isGuarded) {
+    slot.biteFailCount += 1;
+    slot.biteFailTurn = game.biteNo;
+    logPush(game, `P${actorId + 1} 噛み → P${targetId + 1} S${slotIndex + 1}（不発：理由は非公開）`);
+  } else {
+    killSlot(game, targetId, slotIndex);
+    logPush(game, `P${actorId + 1} 噛み → P${targetId + 1} S${slotIndex + 1}（DEAD：理由は非公開）`);
+    updateAfterKill(game);
+  }
+
+  checkWinnersAfterBite(game);
+  if (!game.over) advancePhase(game);
+}
 function checkWinnersAfterBite(game) {
   const alive = game.players.filter(p => p.alive);
   if (alive.length === 0) {
