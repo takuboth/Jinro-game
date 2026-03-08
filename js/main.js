@@ -114,4 +114,22 @@ async function runCpuTurnsWithMode() {
     await sleep(180);
   }
 }
+function phaseText(phase){
+  if (phase === PHASES.SEER) return "占い";
+  if (phase === PHASES.LYNCH) return "吊り";
+  if (phase === PHASES.MAD) return "狂人設定";
+  if (phase === PHASES.GUARD) return "狩人守り";
+  if (phase === PHASES.BITE) return "噛み";
+  if (phase === PHASES.ROUND0_MAD) return "Round0 狂人設定";
+  if (phase === PHASES.ROUND0_GUARD) return "Round0 狩人守り";
+  return "";
+}
+
+function renderThinkingStatus(){
+  const actorId = game.turn;
+  const txt = `P${actorId + 1} が${phaseText(game.phase)}を考え中...`;
+  const vm = deriveViewModel(game, viewAsId);
+  vm.status = txt;
+  renderer.update(vm);
+}
 boot();
