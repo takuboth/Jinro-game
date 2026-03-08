@@ -157,18 +157,31 @@ function checkWinnersAfterBite(game) {
   const alive = game.players.filter(p => p.alive);
   if (alive.length === 0) return;
 
-  const winners = alive
+  // ① 自分の村が狼だけになったプレイヤーは勝ち
+  const wolfOnlyWinners = alive
     .filter(pl => {
       const aliveSlots = pl.slots.filter(s => !s.dead);
       return aliveSlots.length > 0 && aliveSlots.every(s => s.role === ROLES.WOLF);
     })
     .map(pl => pl.id);
 
-  if (winners.length > 0) {
-    game.winners = winners;
+  if (wolfOnlyWinners.length > 0) {
+    game.winners = wolfOnlyWinners;
     game.over = true;
     game.phase = PHASES.END;
-    logPush(game, `勝利確定（噛み後判定） → 勝者: ${winners.map(id => `P${id + 1}`).join(", ")}`);
+    logPush(game, `勝利確定（噛み後判定） → 勝者: ${wolfOnlyWinners.map(id => `P${id + 1}`).join(", ")}`);
+    return;
+  }
+
+  // ② 他が全員リタイアしていて、自分に狼が1枚でも残っていれば勝ち
+  if (alive.length === 1) {
+    const pl = alive[0];
+    if (wolfCount(pl) >= 1) {
+      game.winners = [pl.id];
+      game.over = true;
+      game.phase = PHASES.END;
+      logPush(game, `勝利確定（最後の生存者） → 勝者: P${pl.id + 1}`);
+    }
   }
 }
 
