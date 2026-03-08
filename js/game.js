@@ -153,17 +153,33 @@ function checkWinnersAndEndIfAny(game) {
   const alive = game.players.filter(p => p.alive);
   if (alive.length === 0) return;
 
-  const winners = [];
-  for (const pl of alive) {
-    const othersAllRetired = game.players.every(x => x.id === pl.id ? true : !x.alive);
-    if (othersAllRetired && wolfCount(pl) >= 1) winners.push(pl.id);
-  }
+  // -----------------------------
+  // 条件①：全生存プレイヤーのスロットが全て狼
+  // -----------------------------
+  const allWolfOnly = alive.every(pl => {
+    const aliveSlots = pl.slots.filter(s => !s.dead);
+    return aliveSlots.length > 0 && aliveSlots.every(s => s.role === ROLES.WOLF);
+  });
 
-  if (winners.length) {
-    game.winners = winners;
+  if (allWolfOnly) {
+    game.winners = alive.map(p => p.id);
     game.over = true;
     game.phase = PHASES.END;
-    logPush(game, `勝利確定 → 勝者: ${winners.map(id => `P${id + 1}`).join(", ")}`);
+    logPush(game, `勝利確定（村人全滅） → 勝者: ${alive.map(id => `P${id + 1}`).join(", ")}`);
+    return;
+  }
+
+  // -----------------------------
+  // 条件②：最後の1人
+  // -----------------------------
+  if (alive.length === 1) {
+    const pl = alive[0];
+    if (wolfCount(pl) >= 1) {
+      game.winners = [pl.id];
+      game.over = true;
+      game.phase = PHASES.END;
+      logPush(game, `勝利確定（最後の生存者） → 勝者: P${pl.id + 1}`);
+    }
   }
 }
 
