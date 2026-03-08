@@ -231,6 +231,15 @@ select{
   background: #fafafa;
 }
 
+.playerResult{
+  position: absolute;
+  top: 4px;
+  right: 6px;
+  font-size: 12px;
+  font-weight: 700;
+  pointer-events: none;
+}
+
 /* ============
    Grid
 ============ */
