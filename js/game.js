@@ -404,28 +404,6 @@ export function resolveBite(game, actorId, targetId, slotIndex) {
   if (!game.over) advancePhase(game);
 }
 
-  const target = game.players[targetId];
-  const slot = target.slots[slotIndex];
-  if (slot.dead) return;
-
-  const isWolf = (slot.role === ROLES.WOLF);
-  const isGuarded = (target.guardIndex === slotIndex);
-
-  game.biteNo += 1;
-
-  if (isWolf || isGuarded) {
-    slot.biteFailCount += 1;
-    slot.biteFailTurn = game.biteNo;
-    logPush(game, `P${actorId + 1} 噛み → P${targetId + 1} S${slotIndex + 1}（不発：理由は非公開）`);
-  } else {
-    killSlot(game, targetId, slotIndex);
-    logPush(game, `P${actorId + 1} 噛み → P${targetId + 1} S${slotIndex + 1}（DEAD：理由は非公開）`);
-    updateAfterKill(game);
-  }
-
-  if (!game.over) advancePhase(game);
-}
-
 /* ============
    不在→OK（役職が“いない”時だけ）
 ============ */
