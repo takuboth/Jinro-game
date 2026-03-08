@@ -130,7 +130,7 @@ async function boot() {
 
     function refreshCpuModeButton() {
       if (!btnCpuMode) return;
-      btnCpuMode.textContent = `CPU演出: ${CONFIG.cpuOnlineLike ? "ON" : "OFF"}`;
+      btnCpuMode.textContent = CONFIG.cpuOnlineLike ? "ON" : "OFF";
     }
 
     async function newGame() {
