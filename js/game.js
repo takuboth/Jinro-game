@@ -35,6 +35,7 @@ export function makeNewGame(fixedDeal = null) {
     players.push({
       id: p,
       alive: true,
+      escaped: false,
       slots,
 
       invertIndex: null,
@@ -95,7 +96,29 @@ function nextAliveIndex(game, from, dir) {
 }
 export function leftPlayerIndex(game, actorId) { return nextAliveIndex(game, actorId, -1); }
 export function rightPlayerIndex(game, actorId) { return nextAliveIndex(game, actorId, +1); }
+/* ============
+   勝ち抜け
+============ */
+function escapeWinners(game, winnerIds) {
+  for (const id of winnerIds) {
+    const pl = game.players[id];
+    if (!pl.alive) continue;
 
+    pl.alive = false;
+    pl.escaped = true;
+
+    for (const s of pl.slots) s.dead = true;
+
+    pl.invertIndex = null;
+    pl.guardIndex = null;
+
+    if (!game.winners.includes(id)) {
+      game.winners.push(id);
+    }
+
+    logPush(game, `P${id + 1} 勝ち抜け`);
+  }
+}
 /* ============
    ルール処理
 ============ */
@@ -360,35 +383,35 @@ export function resolveGuard(game, actorId, slotIndex) {
   advancePhase(game);
 }
 
-export function resolveBite(game, actorId, targetId, slotIndex) {
-  if (targetId === null) {
-    logPush(game, `P${actorId + 1} 噛み → 対象なし（生存者1人）なのでスキップ`);
-    checkWinnersAfterBite(game);
-    if (!game.over) advancePhase(game);
+function checkWinnersAfterBite(game) {
+  const alive = game.players.filter(p => p.alive);
+  if (alive.length === 0) {
+    game.over = true;
+    game.phase = PHASES.END;
     return;
   }
 
-  const target = game.players[targetId];
-  const slot = target.slots[slotIndex];
-  if (slot.dead) return;
+  // 勝利条件を満たした生存プレイヤー
+  const winnerIds = alive
+    .filter(pl => {
+      const aliveSlots = pl.slots.filter(s => !s.dead);
+      return aliveSlots.length > 0 && aliveSlots.every(s => s.role === ROLES.WOLF);
+    })
+    .map(pl => pl.id);
 
-  const isWolf = (slot.role === ROLES.WOLF);
-  const isGuarded = (target.guardIndex === slotIndex);
-
-  game.biteNo += 1;
-
-  if (isWolf || isGuarded) {
-    slot.biteFailCount += 1;
-    slot.biteFailTurn = game.biteNo;
-    logPush(game, `P${actorId + 1} 噛み → P${targetId + 1} S${slotIndex + 1}（不発：理由は非公開）`);
-  } else {
-    killSlot(game, targetId, slotIndex);
-    logPush(game, `P${actorId + 1} 噛み → P${targetId + 1} S${slotIndex + 1}（DEAD：理由は非公開）`);
-    updateAfterKill(game);
+  if (winnerIds.length > 0) {
+    escapeWinners(game, winnerIds);
   }
 
-  checkWinnersAfterBite(game);
-  if (!game.over) advancePhase(game);
+  // 勝ち抜け後の生存者を再確認
+  const stillAlive = game.players.filter(p => p.alive);
+
+  // 全員いなくなったら終了
+  if (stillAlive.length === 0) {
+    game.over = true;
+    game.phase = PHASES.END;
+    logPush(game, `ゲーム終了 → 勝者: ${game.winners.map(id => `P${id + 1}`).join(", ")}`);
+  }
 }
 
 /* ============
