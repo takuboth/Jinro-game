@@ -94,8 +94,28 @@ export function pickByMarkPriorityWithTieBonus(cands, order, bonusFn){
 
 /* CPUの雑ロジック */
 export function cpuPickMadInvertIndexByWolfStock(actor){
-  // とりあえず：生存からランダム
   const alive = getAliveSlotIndices(actor);
+  if (!alive.length) return null;
+
+  const wolfAlive = alive.filter(i => actor.slots[i].role === ROLES.WOLF);
+  const villagerAlive = alive.filter(i => actor.slots[i].role === ROLES.VILLAGER);
+  const otherAlive = alive.filter(i => {
+    const r = actor.slots[i].role;
+    return r !== ROLES.WOLF && r !== ROLES.VILLAGER;
+  });
+
+  // 狼が2枚生きている間は、村人を黒に見せたい
+  if (wolfAlive.length >= 2) {
+    if (villagerAlive.length) return pickRandom(villagerAlive);
+    if (otherAlive.length) return pickRandom(otherAlive);
+    return pickRandom(wolfAlive);
+  }
+
+  // 狼が1枚になったら、その狼を白に見せたい
+  if (wolfAlive.length === 1) {
+    return wolfAlive[0];
+  }
+
   return pickRandom(alive);
 }
 
