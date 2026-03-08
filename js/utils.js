@@ -63,10 +63,10 @@ export function isRecentBiteFail(slot, currentBiteNo, within){
 /* 優先順位で1つ選ぶ（同率は先頭） */
 export function pickByMarkPriority(cands, order){
   for (const m of order){
-    const hit = cands.find(x => getMark(x.slot) === m);
-    if (hit) return hit;
+    const hits = cands.filter(x => getMark(x.slot) === m);
+    if (hits.length) return pickRandom(hits);
   }
-  return cands[0];
+  return pickRandom(cands);
 }
 
 /* 優先＋同率ボーナス（ランダム少し） */
@@ -120,6 +120,31 @@ export function cpuPickMadInvertIndexByWolfStock(actor){
 }
 
 export function cpuPickGuardIndex(game, actor){
-  const cand = getGuardableSlotIndices(actor);
-  return pickRandom(cand);
+  const cand = getGuardableSlotIndices(actor).map(i => ({
+    slotIndex: i,
+    slot: actor.slots[i],
+  }));
+  if (!cand.length) return null;
+
+  const publicCands = cand.filter(x => isPublicSeerSlot(game, actor.id, x.slotIndex));
+  const nonPublicCands = cand.filter(x => !isPublicSeerSlot(game, actor.id, x.slotIndex));
+
+  const alivePlayers = game.players.filter(p => p.alive).length;
+  const isDuel = alivePlayers === 2;
+
+  // タイマン時は公開占い優先
+  if (isDuel) {
+    if (publicCands.length) return pickRandom(publicCands).slotIndex;
+
+    const pick = pickByMarkPriority(nonPublicCands, [MARK.WHITE, MARK.GRAY, MARK.BLACK]);
+    return pick ? pick.slotIndex : null;
+  }
+
+  // 通常時は 白 > グレー > 公開占い
+  const nonPublicPick = pickByMarkPriority(nonPublicCands, [MARK.WHITE, MARK.GRAY, MARK.BLACK]);
+  if (nonPublicPick) return nonPublicPick.slotIndex;
+
+  if (publicCands.length) return pickRandom(publicCands).slotIndex;
+
+  return null;
 }
