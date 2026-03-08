@@ -87,7 +87,7 @@ export function findRoleIndex(pl, role) {
 }
 function nextAliveIndex(game, from, dir) {
   const n = game.players.length;
-  for (let step = 1; step <= n; step++) {
+  for (let step = 1; step < n; step++) {
     const idx = (from + dir * step + n) % n;
     if (game.players[idx].alive) return idx;
   }
