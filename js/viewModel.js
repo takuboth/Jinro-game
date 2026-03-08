@@ -107,17 +107,21 @@ export function deriveViewModel(game, viewAsId){
     : `手番: P${actorId+1}`;
 
   // players view model
-  const players = game.players.map(p => ({
+ const players = game.players.map(p => {
+  const revealAll = !p.alive;
+
+  return {
     id: p.id,
     name: `P${p.id+1}`,
     alive: p.alive,
+    escaped: !!p.escaped,
+    revealAll,
 
     mediumVal: mediumValFor(p.id),
     mediumClass: mediumClass(),
 
     villageTotal: villageRolesTotal(p),
 
-    // guard/invert は renderer 側で “View as 本人だけ表示” するために rawも渡す
     guardIndex: p.guardIndex,
     invertIndex: p.invertIndex,
     madUsed: p.madUsed,
@@ -126,10 +130,12 @@ export function deriveViewModel(game, viewAsId){
       idx,
       role: s.role,
       dead: s.dead,
-      mark: getMark(s),                 // GRAY/WHITE/BLACK
+      mark: getMark(s),
       isPublicSeer: isPublicSeerSlot(game, p.id, idx),
+      revealRole: revealAll,
     })),
-  }));
+  };
+});
 
   return {
     game,
