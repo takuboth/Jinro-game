@@ -207,6 +207,14 @@ export function advancePhase(game) {
     game.turn = (next === null) ? game.turn : next;
     game.phase = PHASES.SEER;
   }
+
+  // 噛みフェーズに入った時、対象がいなければ自動スキップして勝利判定まで進める
+  if (game.phase === PHASES.BITE) {
+    const right = rightPlayerIndex(game, game.turn);
+    if (right === null) {
+      resolveBite(game, game.turn, null, 0);
+    }
+  }
 }
 
 /* ============
