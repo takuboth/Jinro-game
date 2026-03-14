@@ -1,91 +1,159 @@
-import { CONFIG, ROLES, PHASES, MARK } from "./config.js";
+import { CONFIG, ROLES, PHASES, MARK, DEATH, PUBLIC_KIND } from "./config.js";
 import {
-  shuffle, nowStamp,
-  getAliveSlotIndices, getGuardableSlotIndices,
-  getMark, isRecentBiteFail, isPublicSeerSlot,
-  pickRandom, pickByMarkPriority, pickByMarkPriorityWithTieBonus,
-  cpuPickMadInvertIndexByWolfStock, cpuPickGuardIndex,
+  shuffle,
+  nowStamp,
+  pickRandom,
+  colorFromRole,
+  hasAliveRole,
+  countAliveWolves,
+  countAliveNonWolves,
+  getLineRole,
+  getTrueLineKind,
+  getFakeLineKind,
+  isLineAlive,
+  sameTarget,
+  makeEmptySeenMap,
+  hiddenReserveCandidates,
+  pickCpuLynchTarget,
+  pickCpuReserveTarget,
+  pickCpuBiteTarget,
+  pickCpuGuardTarget,
 } from "./utils.js";
 
-export function makeNewGame(fixedDeal = null) {
-  const deck = [
-    ROLES.WOLF, ROLES.WOLF,
-    ROLES.MAD,
-    ROLES.SEER,
-    ROLES.GUARD,
-    ROLES.MEDIUM,
-    ROLES.VILLAGER, ROLES.VILLAGER, ROLES.VILLAGER
-  ];
-
-  const players = [];
-  for (let p = 0; p < 4; p++) {
-    const roles = fixedDeal ? fixedDeal[p].slice() : shuffle(deck);
-    const slots = roles.map(r => ({
-      role: r,
-      dead: false,
-
-      // 全体公開：最新占い結果（"白"/"黒"/null）
-      publicSeer: { last: null, changedLast: false, byActorId: null },
-
-      // 噛み不発タグ（非公開）
-      biteFailCount: 0,
-      biteFailTurn: null,
-    }));
-
-    players.push({
-      id: p,
-      alive: true,
-      escaped: false,
-      slots,
-
-      invertIndex: null,
-      madUsed: false,
-
-      guardIndex: null,
-
-      // 霊媒停止後の固定
-      mediumWolfSnapshot: null,
-    });
-  }
-
-  return {
-    players,
-    phase: PHASES.ROUND0_MAD,
-    turn: 0,
-    winners: [],
-    over: false,
-    log: [],
-
-    // ★占：黒を出した占いの位置（playerId -> slotIndex or null）
-    publicSeerReveal: [null, null, null, null],
-
-    // 噛み回数（非公開）
-    biteNo: 0,
-  };
-}
-
-/* ============
-   ログ（今は画面に出さないが、内部は残す）
-============ */
 export function logPush(game, text) {
   game.log.push(`[${nowStamp()}] ${text}`);
 }
 
-/* ============
-   便利（ゲーム依存）
-============ */
-export function countRoleRemaining(pl, role) {
-  return pl.slots.reduce((acc, s) => acc + ((!s.dead && s.role === role) ? 1 : 0), 0);
+function makePublicSlots() {
+  const seerMad = shuffle([ROLES.SEER, ROLES.MAD]);
+  return [
+    {
+      role: seerMad[0],
+      isPublic: true,
+      publicKind: PUBLIC_KIND.A,
+      dead: false,
+      seerA: MARK.NONE,
+      seerB: MARK.NONE,
+      medium: MARK.NONE,
+      deathReason: DEATH.NONE,
+    },
+    {
+      role: seerMad[1],
+      isPublic: true,
+      publicKind: PUBLIC_KIND.B,
+      dead: false,
+      seerA: MARK.NONE,
+      seerB: MARK.NONE,
+      medium: MARK.NONE,
+      deathReason: DEATH.NONE,
+    },
+    {
+      role: ROLES.MEDIUM,
+      isPublic: true,
+      publicKind: PUBLIC_KIND.MEDIUM,
+      dead: false,
+      seerA: MARK.NONE,
+      seerB: MARK.NONE,
+      medium: MARK.NONE,
+      deathReason: DEATH.NONE,
+    },
+  ];
 }
-export function hasRoleAlive(pl, role) { return countRoleRemaining(pl, role) > 0; }
-export function wolfCount(pl) { return countRoleRemaining(pl, ROLES.WOLF); }
-export function villageRolesTotal(pl) {
-  return countRoleRemaining(pl, ROLES.SEER) + countRoleRemaining(pl, ROLES.GUARD) + countRoleRemaining(pl, ROLES.MEDIUM);
+
+function makeHiddenSlots() {
+  const deck = shuffle(CONFIG.hiddenDeck);
+  return deck.map(role => ({
+    role,
+    isPublic: false,
+    publicKind: null,
+    dead: false,
+    seerA: MARK.NONE,
+    seerB: MARK.NONE,
+    medium: MARK.NONE,
+    deathReason: DEATH.NONE,
+  }));
 }
-export function findRoleIndex(pl, role) {
-  for (let i = 0; i < pl.slots.length; i++) if (pl.slots[i].role === role) return i;
-  return null;
+
+function makePlayer(id) {
+  return {
+    id,
+    alive: true,
+    escaped: false,
+
+    slots: [...makePublicSlots(), ...makeHiddenSlots()],
+
+    seenA: makeEmptySeenMap(),
+    seenB: makeEmptySeenMap(),
+
+    pendingA: null,
+    pendingB: null,
+    pendingMedium: null,
+
+    guardIncomingSlot: null,
+    lastGuardTargetId: null,
+    lastGuardSlot: null,
+  };
 }
+
+export function makeNewGame() {
+  const players = [];
+  for (let i = 0; i < CONFIG.playerCount; i++) {
+    players.push(makePlayer(i));
+  }
+
+  const game = {
+    players,
+    turn: 0,
+    phase: PHASES.LYNCH,
+    over: false,
+    winners: [],
+    log: [],
+  };
+
+  applyInitialReservations(game);
+  logPush(game, "初期占い結果を配置");
+  return game;
+}
+
+function applyInitialReservations(game) {
+  for (let actorId = 0; actorId < game.players.length; actorId++) {
+    const actor = game.players[actorId];
+    const leftId = leftPlayerIndex(game, actorId);
+    if (leftId == null) continue;
+
+    const target = game.players[leftId];
+    const cands = target.slots
+      .map((slot, index) => ({ slot, index }))
+      .filter(x => !x.slot.dead && x.slot.role !== ROLES.WOLF);
+
+    if (!cands.length) continue;
+
+    const pickA = pickRandom(cands);
+    let pickB = pickRandom(cands);
+
+    if (!pickB) pickB = pickA;
+
+    actor.pendingA = { targetId: leftId, slotIndex: pickA.index };
+    actor.pendingB = { targetId: leftId, slotIndex: pickB.index };
+
+    if (pickA) actor.seenA[pickA.index] = true;
+    if (pickB) actor.seenB[pickB.index] = true;
+
+    revealPendingReportsForActor(game, actorId);
+
+    actor.pendingA = null;
+    actor.pendingB = null;
+  }
+}
+
+export function leftPlayerIndex(game, actorId) {
+  return nextAliveIndex(game, actorId, -1);
+}
+
+export function rightPlayerIndex(game, actorId) {
+  return nextAliveIndex(game, actorId, +1);
+}
+
 function nextAliveIndex(game, from, dir) {
   const n = game.players.length;
   for (let step = 1; step < n; step++) {
@@ -94,503 +162,409 @@ function nextAliveIndex(game, from, dir) {
   }
   return null;
 }
-export function leftPlayerIndex(game, actorId) { return nextAliveIndex(game, actorId, -1); }
-export function rightPlayerIndex(game, actorId) { return nextAliveIndex(game, actorId, +1); }
-/* ============
-   勝ち抜け
-============ */
-function escapeWinners(game, winnerIds) {
-  for (const id of winnerIds) {
-    const pl = game.players[id];
-    if (!pl.alive) continue;
 
-    pl.alive = false;
-    pl.escaped = true;
-
-    for (const s of pl.slots) s.dead = true;
-
-    pl.invertIndex = null;
-    pl.guardIndex = null;
-
-    if (!game.winners.includes(id)) {
-      game.winners.push(id);
-    }
-
-    logPush(game, `P${id + 1} 勝ち抜け`);
+function nextTurn(game) {
+  const next = nextAliveIndex(game, game.turn, +1);
+  if (next == null) {
+    game.over = true;
+    game.phase = PHASES.END;
+    return;
   }
+  game.turn = next;
+  game.phase = PHASES.LYNCH;
+  revealPendingReportsForActor(game, game.turn);
 }
-/* ============
-   ルール処理
-============ */
-export function killSlot(game, playerId, slotIndex) {
-  const pl = game.players[playerId];
-  if (!pl.alive) return;
-  const slot = pl.slots[slotIndex];
-  if (slot.dead) return;
+
+function killSlot(game, playerId, slotIndex, reason) {
+  const player = game.players[playerId];
+  if (!player.alive) return false;
+
+  const slot = player.slots[slotIndex];
+  if (!slot || slot.dead) return false;
 
   slot.dead = true;
+  slot.deathReason = reason;
 
-  if (pl.invertIndex === slotIndex) {
-    pl.invertIndex = null;
-    logPush(game, `P${playerId + 1} 反転対象がDEAD → 反転解除`);
-  }
+  logPush(
+    game,
+    `P${playerId + 1} S${slotIndex + 1} ${reason === DEATH.LYNCH ? "吊り死亡" : "噛み死亡"}`
+  );
 
-  if (slot.role === ROLES.MAD) {
-    pl.invertIndex = null;
-    logPush(game, `P${playerId + 1} 狂人カードがDEAD → 能力消滅`);
-  }
+  return true;
+}
 
-  if (slot.role === ROLES.MEDIUM) {
-    if (pl.mediumWolfSnapshot === null) {
-      pl.mediumWolfSnapshot = game.players.map(x => wolfCount(x));
-      logPush(game, `P${playerId + 1} 霊媒カードがDEAD → 霊媒表示は固定化`);
+function clearRevealStateOnFinish(player) {
+  player.guardIncomingSlot = null;
+}
+
+function finalizePlayerState(game, player) {
+  if (!player.alive) return;
+
+  const wolves = countAliveWolves(player);
+  const nonWolves = countAliveNonWolves(player);
+
+  if (wolves >= nonWolves && player.slots.some(s => !s.dead)) {
+    player.alive = false;
+    player.escaped = true;
+    clearRevealStateOnFinish(player);
+    if (!game.winners.includes(player.id)) {
+      game.winners.push(player.id);
     }
-  }
-
-  if (slot.role === ROLES.GUARD) {
-    pl.guardIndex = null;
-    logPush(game, `P${playerId + 1} 狩人カードがDEAD → 守り無効`);
-  }
-}
-
-function retireIfWolfZero(game) {
-  for (const pl of game.players) {
-    if (pl.alive && wolfCount(pl) === 0) {
-      pl.alive = false;
-
-      for (const s of pl.slots) s.dead = true;
-
-      pl.invertIndex = null;
-      pl.guardIndex = null;
-
-      logPush(game, `P${pl.id + 1} 人狼0 → 即リタイヤ（全スロットDEAD表示）`);
-
-      if (pl.mediumWolfSnapshot === null && findRoleIndex(pl, ROLES.MEDIUM) !== null) {
-        pl.mediumWolfSnapshot = game.players.map(x => wolfCount(x));
-      }
-    }
-  }
-}
-
-function updateAfterKill(game) {
-  retireIfWolfZero(game);
-}
-
-export function advanceRound0(game) {
-  if (game.over) return;
-
-  if (game.phase === PHASES.ROUND0_MAD) {
-    game.phase = PHASES.ROUND0_GUARD;
+    logPush(game, `P${player.id + 1} 勝ち抜け`);
     return;
   }
 
-  if (game.phase === PHASES.ROUND0_GUARD) {
-    if (game.turn < 3) {
-      game.turn += 1;
-      game.phase = PHASES.ROUND0_MAD;
-    } else {
-      game.turn = 0;
-      game.phase = PHASES.SEER;
-      logPush(game, "Round0終了 → 通常ターン開始");
-    }
+  if (wolves === 0) {
+    player.alive = false;
+    player.escaped = false;
+    clearRevealStateOnFinish(player);
+    logPush(game, `P${player.id + 1} リタイア`);
   }
 }
 
-export function advancePhase(game) {
-  if (game.over) return;
-  if (game.phase === PHASES.ROUND0_MAD || game.phase === PHASES.ROUND0_GUARD) return;
-
-  const order = [PHASES.SEER, PHASES.LYNCH, PHASES.MAD, PHASES.GUARD, PHASES.BITE];
-  const idx = order.indexOf(game.phase);
-  if (idx === -1) return;
-
-  if (idx < order.length - 1) {
-    game.phase = order[idx + 1];
-  } else {
-    const next = nextAliveIndex(game, game.turn, +1);
-    game.turn = (next === null) ? game.turn : next;
-    game.phase = PHASES.SEER;
+function judgeAfterGuard(game) {
+  for (const player of game.players) {
+    if (player.alive) finalizePlayerState(game, player);
   }
 
-  // 噛みフェーズに入った時、対象がいなければ自動スキップして勝利判定まで進める
-  if (game.phase === PHASES.BITE) {
-    const right = rightPlayerIndex(game, game.turn);
-    if (right === null) {
-      resolveBite(game, game.turn, null, 0);
-    }
+  const aliveCount = game.players.filter(p => p.alive).length;
+  if (aliveCount === 0) {
+    game.over = true;
+    game.phase = PHASES.END;
+    logPush(
+      game,
+      `ゲーム終了 / 勝者: ${
+        game.winners.length ? game.winners.map(id => `P${id + 1}`).join(", ") : "なし"
+      }`
+    );
   }
 }
 
-/* ============
-   各フェーズ解決
-============ */
-export function resolveSeer(game, actorId, targetId, slotIndex) {
+function revealPendingReportsForActor(game, actorId) {
   const actor = game.players[actorId];
+  if (!actor || !actor.alive) return;
 
-  if (targetId === null) {
-    logPush(game, `P${actorId + 1} 占い → 対象なし（生存者1人）なのでスキップ`);
-    advancePhase(game);
+  const trueKind = getTrueLineKind(actor);
+  const fakeKind = getFakeLineKind(actor);
+
+  const pendingByKind = {
+    [PUBLIC_KIND.A]: actor.pendingA,
+    [PUBLIC_KIND.B]: actor.pendingB,
+  };
+
+  const truePending = pendingByKind[trueKind];
+  const fakePending = pendingByKind[fakeKind];
+
+  let trueColor = null;
+
+  if (truePending && isLineAlive(actor, trueKind)) {
+    const tgt = game.players[truePending.targetId];
+    const slot = tgt?.slots?.[truePending.slotIndex];
+    if (slot) {
+      trueColor = colorFromRole(slot.role);
+      if (trueKind === PUBLIC_KIND.A) slot.seerA = trueColor;
+      else slot.seerB = trueColor;
+
+      logPush(
+        game,
+        `P${actorId + 1} ${trueKind === PUBLIC_KIND.A ? "占A" : "占B"}結果 → P${truePending.targetId + 1} S${truePending.slotIndex + 1} = ${trueColor === MARK.BLACK ? "黒" : "白"}`
+      );
+    }
+  }
+
+  if (fakePending && isLineAlive(actor, fakeKind) && trueColor !== null) {
+    const tgt = game.players[fakePending.targetId];
+    const slot = tgt?.slots?.[fakePending.slotIndex];
+    if (slot) {
+      const same = sameTarget(fakePending, truePending);
+      const fakeColor =
+        same
+          ? (trueColor === MARK.BLACK ? MARK.WHITE : MARK.BLACK)
+          : trueColor;
+
+      if (fakeKind === PUBLIC_KIND.A) slot.seerA = fakeColor;
+      else slot.seerB = fakeColor;
+
+      logPush(
+        game,
+        `P${actorId + 1} ${fakeKind === PUBLIC_KIND.A ? "占A" : "占B"}結果 → P${fakePending.targetId + 1} S${fakePending.slotIndex + 1} = ${fakeColor === MARK.BLACK ? "黒" : "白"}`
+      );
+    }
+  }
+
+  if (actor.pendingMedium && isLineAlive(actor, PUBLIC_KIND.MEDIUM)) {
+    const tgt = game.players[actor.pendingMedium.targetId];
+    const slot = tgt?.slots?.[actor.pendingMedium.slotIndex];
+    if (slot) {
+      slot.medium = actor.pendingMedium.color;
+      logPush(
+        game,
+        `P${actorId + 1} 霊媒結果 → P${actor.pendingMedium.targetId + 1} S${actor.pendingMedium.slotIndex + 1} = ${actor.pendingMedium.color === MARK.BLACK ? "黒" : "白"}`
+      );
+    }
+  }
+
+  actor.pendingA = null;
+  actor.pendingB = null;
+  actor.pendingMedium = null;
+}
+
+function advancePhase(game) {
+  if (game.over) return;
+
+  if (game.phase === PHASES.LYNCH) {
+    game.phase = PHASES.RESERVE_A;
     return;
   }
+  if (game.phase === PHASES.RESERVE_A) {
+    game.phase = PHASES.RESERVE_B;
+    return;
+  }
+  if (game.phase === PHASES.RESERVE_B) {
+    game.phase = PHASES.BITE;
+    return;
+  }
+  if (game.phase === PHASES.BITE) {
+    game.phase = PHASES.GUARD;
+    return;
+  }
+  if (game.phase === PHASES.GUARD) {
+    judgeAfterGuard(game);
+    if (!game.over) nextTurn(game);
+  }
+}
+
+export function applyLynch(game, actorId, targetId, slotIndex) {
+  if (game.over) return;
   const target = game.players[targetId];
+  const slot = target?.slots?.[slotIndex];
+  if (!target || !slot || slot.dead) return;
 
-  if (!hasRoleAlive(actor, ROLES.SEER)) {
-    logPush(game, `P${actorId + 1} 占い不在 → OK（スキップ）`);
-    advancePhase(game);
-    return;
-  }
+  killSlot(game, targetId, slotIndex, DEATH.LYNCH);
 
-  const slot = target.slots[slotIndex];
-  if (slot.dead) {
-    logPush(game, `P${actorId + 1} 占い: 対象がDEADで無効`);
-    return;
-  }
+  game.players[actorId].pendingMedium = {
+    targetId,
+    slotIndex,
+    color: colorFromRole(slot.role),
+  };
 
-  let isBlack = (slot.role === ROLES.WOLF);
-  let wasInverted = false;
-
-  if (!target.madUsed && hasRoleAlive(target, ROLES.MAD) && target.invertIndex === slotIndex) {
-    isBlack = !isBlack;
-    wasInverted = true;
-    target.madUsed = true;
-    logPush(game, `P${targetId + 1} 狂人反転が発動（1回きり）→ 以後は選択不可`);
-  }
-
-  const res = isBlack ? "黒" : "白";
-  const prev = slot.publicSeer.last;
-  const changedLast = (prev !== null && prev !== res);
-
-  slot.publicSeer = { last: res, changedLast, byActorId: actorId };
-
-  // ★占公開：黒が出たら占いの位置を公開（反転黒でも同様）
-  if (res === "黒") {
-    game.publicSeerReveal[actorId] = findRoleIndex(actor, ROLES.SEER);
-  }
-
-  logPush(game, `P${actorId + 1} 占い → P${targetId + 1} S${slotIndex + 1} = ${res}${changedLast ? "（変化）" : ""}${wasInverted ? "（反転結果）" : ""}`);
-
+  logPush(game, `P${actorId + 1} 吊り → P${targetId + 1} S${slotIndex + 1}`);
   advancePhase(game);
 }
 
-export function resolveLynch(game, actorId, targetId, slotIndex) {
-  if (targetId === null) {
-    logPush(game, `P${actorId + 1} 吊り → 対象なし（生存者1人）なのでスキップ`);
-    advancePhase(game);
-    return;
-  }
+export function applyReserve(game, actorId, lineKind, targetId, slotIndex) {
+  if (game.over) return;
+
+  const actor = game.players[actorId];
   const target = game.players[targetId];
-  if (target.slots[slotIndex].dead) return;
+  const slot = target?.slots?.[slotIndex];
 
-  killSlot(game, targetId, slotIndex);
-  logPush(game, `P${actorId + 1} 吊り → P${targetId + 1} S${slotIndex + 1}（カード種別は非公開／対象スロットはDEAD）`);
+  if (!target || !slot || slot.dead || slot.isPublic) return;
 
-  updateAfterKill(game);
-  if (!game.over) advancePhase(game);
-}
-
-export function resolveMadPick(game, actorId, slotIndex) {
-  const pl = game.players[actorId];
-
-  if (!hasRoleAlive(pl, ROLES.MAD)) {
-    pl.invertIndex = null;
-    const label = (game.phase === PHASES.ROUND0_MAD) ? "Round0 狂人" : "狂人";
-    logPush(game, `P${actorId + 1} ${label}不在 → OK（スキップ）`);
-    if (game.phase === PHASES.ROUND0_MAD) advanceRound0(game); else advancePhase(game);
-    return;
-  }
-
-  if (pl.madUsed) {
-    const label = (game.phase === PHASES.ROUND0_MAD) ? "Round0 狂人" : "狂人設定";
-    logPush(game, `P${actorId + 1} ${label} → 発動済み（1回きり）のためスキップのみ`);
-    if (game.phase === PHASES.ROUND0_MAD) advanceRound0(game); else advancePhase(game);
-    return;
-  }
-
-  if (pl.slots[slotIndex].dead) {
-    logPush(game, `P${actorId + 1} 狂人 → DEADは選べない`);
-    return;
-  }
-
-  pl.invertIndex = slotIndex;
-  const label = (game.phase === PHASES.ROUND0_MAD) ? "Round0 狂人" : "狂人設定";
-  logPush(game, `P${actorId + 1} ${label} → 反転対象設定（非公開）`);
-
-  if (game.phase === PHASES.ROUND0_MAD) advanceRound0(game); else advancePhase(game);
-}
-
-export function resolveGuard(game, actorId, slotIndex) {
-  const pl = game.players[actorId];
-
-  if (!hasRoleAlive(pl, ROLES.GUARD)) {
-    pl.guardIndex = null;
-    const label = (game.phase === PHASES.ROUND0_GUARD) ? "Round0 狩人" : "狩人";
-    logPush(game, `P${actorId + 1} ${label}不在 → OK（スキップ）`);
-    if (game.phase === PHASES.ROUND0_GUARD) advanceRound0(game); else advancePhase(game);
-    return;
-  }
-
-  const slot = pl.slots[slotIndex];
-  if (slot.dead) {
-    logPush(game, `P${actorId + 1} 狩人設定 → DEADは選べない`);
-    return;
-  }
-  if (slot.role === ROLES.GUARD || slot.role === ROLES.WOLF) {
-    logPush(game, `P${actorId + 1} 狩人設定 → 守れないカード（狩人/人狼）`);
-    return;
-  }
-
-  pl.guardIndex = slotIndex;
-
-  if (game.phase === PHASES.ROUND0_GUARD) {
-    logPush(game, `P${actorId + 1} Round0 狩人守り → 設定完了（非公開）`);
-    advanceRound0(game);
-    return;
-  }
-
-  logPush(game, `P${actorId + 1} 狩人守り設定 → 設定完了（非公開）`);
-  advancePhase(game);
-}
-export function resolveBite(game, actorId, targetId, slotIndex) {
-  if (targetId === null) {
-    logPush(game, `P${actorId + 1} 噛み → 対象なし（生存者1人）なのでスキップ`);
-    checkWinnersAfterBite(game);
-    if (!game.over) advancePhase(game);
-    return;
-  }
-
-  const target = game.players[targetId];
-  const slot = target.slots[slotIndex];
-  if (slot.dead) return;
-
-  const isWolf = (slot.role === ROLES.WOLF);
-  const isGuarded = (target.guardIndex === slotIndex);
-
-  game.biteNo += 1;
-
-  if (isWolf || isGuarded) {
-    slot.biteFailCount += 1;
-    slot.biteFailTurn = game.biteNo;
-    logPush(game, `P${actorId + 1} 噛み → P${targetId + 1} S${slotIndex + 1}（不発：理由は非公開）`);
+  if (lineKind === PUBLIC_KIND.A) {
+    if (actor.seenA[slotIndex]) return;
+    actor.seenA[slotIndex] = true;
+    actor.pendingA = { targetId, slotIndex };
+    logPush(game, `P${actorId + 1} 占A予約 → P${targetId + 1} S${slotIndex + 1}`);
   } else {
-    killSlot(game, targetId, slotIndex);
-    logPush(game, `P${actorId + 1} 噛み → P${targetId + 1} S${slotIndex + 1}（DEAD：理由は非公開）`);
-    updateAfterKill(game);
+    if (actor.seenB[slotIndex]) return;
+    actor.seenB[slotIndex] = true;
+    actor.pendingB = { targetId, slotIndex };
+    logPush(game, `P${actorId + 1} 占B予約 → P${targetId + 1} S${slotIndex + 1}`);
   }
 
-  checkWinnersAfterBite(game);
-  if (!game.over) advancePhase(game);
-}
-function checkWinnersAfterBite(game) {
-  const alive = game.players.filter(p => p.alive);
-  if (alive.length === 0) {
-    game.over = true;
-    game.phase = PHASES.END;
-    return;
-  }
-
-  // 勝利条件を満たした生存プレイヤー
-  const winnerIds = alive
-    .filter(pl => {
-      const aliveSlots = pl.slots.filter(s => !s.dead);
-      return aliveSlots.length > 0 && aliveSlots.every(s => s.role === ROLES.WOLF);
-    })
-    .map(pl => pl.id);
-
-  if (winnerIds.length > 0) {
-    escapeWinners(game, winnerIds);
-  }
-
-  // 勝ち抜け後の生存者を再確認
-  const stillAlive = game.players.filter(p => p.alive);
-
-  // 全員いなくなったら終了
-  if (stillAlive.length === 0) {
-    game.over = true;
-    game.phase = PHASES.END;
-    logPush(game, `ゲーム終了 → 勝者: ${game.winners.map(id => `P${id + 1}`).join(", ")}`);
-  }
+  advancePhase(game);
 }
 
-/* ============
-   不在→OK（役職が“いない”時だけ）
-============ */
+export function applyBite(game, actorId, slotIndex) {
+  if (game.over) return;
+
+  const actor = game.players[actorId];
+  const slot = actor?.slots?.[slotIndex];
+  if (!slot || slot.dead || slot.role === ROLES.WOLF) return;
+
+  const defenderId = leftPlayerIndex(game, actorId);
+  const defender = defenderId == null ? null : game.players[defenderId];
+
+  const guardActive =
+    defender &&
+    defender.alive &&
+    hasAliveRole(defender, ROLES.GUARD) &&
+    actor.guardIncomingSlot === slotIndex;
+
+  if (guardActive) {
+    logPush(game, `P${actorId + 1} 噛み → P${actorId + 1} S${slotIndex + 1}（ガードで不発）`);
+  } else {
+    killSlot(game, actorId, slotIndex, DEATH.BITE);
+    logPush(game, `P${actorId + 1} 噛み → P${actorId + 1} S${slotIndex + 1}`);
+  }
+
+  advancePhase(game);
+}
+
+export function applyGuard(game, actorId, targetId, slotIndex) {
+  if (game.over) return;
+
+  const actor = game.players[actorId];
+  const target = game.players[targetId];
+  const slot = target?.slots?.[slotIndex];
+  if (!target || !slot || slot.dead) return;
+
+  target.guardIncomingSlot = slotIndex;
+  actor.lastGuardTargetId = targetId;
+  actor.lastGuardSlot = slotIndex;
+
+  logPush(game, `P${actorId + 1} 守り設定 → P${targetId + 1} S${slotIndex + 1}`);
+  advancePhase(game);
+}
+
 export function canAbsentOk(game) {
   if (game.over) return false;
   if (game.turn !== CONFIG.humanPlayerId) return false;
 
-  const actor = game.players[game.turn];
+  const actorId = game.turn;
+  const actor = game.players[actorId];
+  if (!actor?.alive) return false;
 
-  if (game.phase === PHASES.SEER) return !hasRoleAlive(actor, ROLES.SEER);
-  if (game.phase === PHASES.MAD) return !hasRoleAlive(actor, ROLES.MAD);
-  if (game.phase === PHASES.GUARD) return !hasRoleAlive(actor, ROLES.GUARD);
+  const leftId = leftPlayerIndex(game, actorId);
+  const rightId = rightPlayerIndex(game, actorId);
 
-  if (game.phase === PHASES.ROUND0_MAD) return !hasRoleAlive(actor, ROLES.MAD);
-  if (game.phase === PHASES.ROUND0_GUARD) return !hasRoleAlive(actor, ROLES.GUARD);
+  if (game.phase === PHASES.RESERVE_A) {
+    if (leftId == null) return true;
+    return hiddenReserveCandidates(game.players[leftId], actor.seenA).length === 0;
+  }
+
+  if (game.phase === PHASES.RESERVE_B) {
+    if (leftId == null) return true;
+    return hiddenReserveCandidates(game.players[leftId], actor.seenB).length === 0;
+  }
+
+  if (game.phase === PHASES.GUARD) {
+    if (rightId == null) return true;
+    const right = game.players[rightId];
+    const forbidden = actor.lastGuardTargetId === rightId ? actor.lastGuardSlot : null;
+    const cands = right.slots
+      .map((slot, index) => ({ slot, index }))
+      .filter(x => !x.slot.dead && x.index !== forbidden);
+    return cands.length === 0;
+  }
 
   return false;
 }
+
 export function doAbsentOk(game) {
   if (!canAbsentOk(game)) return;
 
   const actorId = game.turn;
+  if (game.phase === PHASES.RESERVE_A) {
+    logPush(game, `P${actorId + 1} 占A予約 → 対象なしでスキップ`);
+    advancePhase(game);
+    return;
+  }
 
-  if (game.phase === PHASES.SEER) { logPush(game, `P${actorId + 1} 占い不在 → OK（スキップ）`); advancePhase(game); return; }
-  if (game.phase === PHASES.MAD)  { logPush(game, `P${actorId + 1} 狂人不在 → OK（スキップ）`); advancePhase(game); return; }
-  if (game.phase === PHASES.GUARD){ logPush(game, `P${actorId + 1} 狩人不在 → OK（スキップ）`); advancePhase(game); return; }
+  if (game.phase === PHASES.RESERVE_B) {
+    logPush(game, `P${actorId + 1} 占B予約 → 対象なしでスキップ`);
+    advancePhase(game);
+    return;
+  }
 
-  if (game.phase === PHASES.ROUND0_MAD)   { logPush(game, `P${actorId + 1} Round0 狂人不在 → OK（スキップ）`); advanceRound0(game); return; }
-  if (game.phase === PHASES.ROUND0_GUARD) { logPush(game, `P${actorId + 1} Round0 狩人不在 → OK（スキップ）`); advanceRound0(game); return; }
+  if (game.phase === PHASES.GUARD) {
+    logPush(game, `P${actorId + 1} 守り設定 → 対象なしでスキップ`);
+    advancePhase(game);
+  }
 }
 
-/* ============
-   CPU 1手（即時）
-============ */
+export function isHumanTurn(game) {
+  if (!CONFIG.autoPlayers) return true;
+  if (game.over || game.phase === PHASES.END) return true;
+
+  const human = game.players[CONFIG.humanPlayerId];
+  if (!human || !human.alive) return false;
+
+  return game.turn === CONFIG.humanPlayerId;
+}
+
 export function cpuDoOneImmediate(game) {
   if (game.over) return;
 
   const actorId = game.turn;
   const actor = game.players[actorId];
+  if (!actor || !actor.alive) return;
 
-  // Round0 狂人
-  if (game.phase === PHASES.ROUND0_MAD) {
-    if (!hasRoleAlive(actor, ROLES.MAD)) { logPush(game, `CPU: P${actorId + 1} Round0 狂人不在 → OK`); advanceRound0(game); return; }
-    if (actor.madUsed) { logPush(game, `CPU: P${actorId + 1} Round0 狂人 → 発動済み → スキップ`); advanceRound0(game); return; }
-    const idx = cpuPickMadInvertIndexByWolfStock(actor);
-    if (idx === null) { logPush(game, `CPU: P${actorId + 1} Round0 狂人 → 対象なし`); advanceRound0(game); return; }
-    resolveMadPick(game, actorId, idx);
-    return;
-  }
+  const leftId = leftPlayerIndex(game, actorId);
+  const rightId = rightPlayerIndex(game, actorId);
 
-  // Round0 狩人
-  if (game.phase === PHASES.ROUND0_GUARD) {
-    if (!hasRoleAlive(actor, ROLES.GUARD)) { logPush(game, `CPU: P${actorId + 1} Round0 狩人不在 → OK`); advanceRound0(game); return; }
-    const pick = cpuPickGuardIndex(game, actor);
-    if (pick === null) { logPush(game, `CPU: P${actorId + 1} Round0 狩人守り → なし`); advanceRound0(game); return; }
-    resolveGuard(game, actorId, pick);
-    return;
-  }
-
-  // 占い（左対象 / GRAY>WHITE>BLACK）
-  if (game.phase === PHASES.SEER) {
-    if (!hasRoleAlive(actor, ROLES.SEER)) { logPush(game, `CPU: P${actorId + 1} 占い不在 → OK`); advancePhase(game); return; }
-    const left = leftPlayerIndex(game, actorId);
-    if (left === null) { logPush(game, `CPU: P${actorId + 1} 占い → 対象なし`); advancePhase(game); return; }
-    const tgt = game.players[left];
-    const cand = getAliveSlotIndices(tgt).map(i => ({ slotIndex: i, slot: tgt.slots[i] }));
-    const pick = pickByMarkPriority(cand, [MARK.GRAY, MARK.WHITE, MARK.BLACK]);
-    resolveSeer(game, actorId, left, pick.slotIndex);
-    return;
-  }
-
-  // 吊り（左）：黒 > グレー > 白 > 公開占い（最後）
   if (game.phase === PHASES.LYNCH) {
-    const left = leftPlayerIndex(game, actorId);
-    if (left === null) { logPush(game, `CPU: P${actorId + 1} 吊り → 対象なし`); advancePhase(game); return; }
-    const tgt = game.players[left];
-
-    const candAll = getAliveSlotIndices(tgt).map(i => ({ slotIndex: i, slot: tgt.slots[i] }));
-    const candNonPublic = candAll.filter(x => !isPublicSeerSlot(game, left, x.slotIndex));
-    const candPublic    = candAll.filter(x =>  isPublicSeerSlot(game, left, x.slotIndex));
-
-    let pick = null;
-    if (candNonPublic.length) {
-      pick = pickByMarkPriorityWithTieBonus(
-        candNonPublic,
-        [MARK.BLACK, MARK.GRAY, MARK.WHITE],
-        (x) => ((x.slot.biteFailCount || 0) > 0 ? 0.5 : 0)
-      );
-    } else if (candPublic.length) {
-      pick = pickRandom(candPublic);
-    } else {
-      pick = pickRandom(candAll);
-    }
-
-    resolveLynch(game, actorId, left, pick.slotIndex);
-    return;
-  }
-
-  // 狂人（毎ターン選択、発動済みならスキップ）
-  if (game.phase === PHASES.MAD) {
-    if (!hasRoleAlive(actor, ROLES.MAD)) { logPush(game, `CPU: P${actorId + 1} 狂人不在 → OK`); advancePhase(game); return; }
-    if (actor.madUsed) { logPush(game, `CPU: P${actorId + 1} 狂人 → 発動済み → スキップ`); advancePhase(game); return; }
-    const idx = cpuPickMadInvertIndexByWolfStock(actor);
-    if (idx === null) { logPush(game, `CPU: P${actorId + 1} 狂人 → 対象なし`); advancePhase(game); return; }
-    resolveMadPick(game, actorId, idx);
-    return;
-  }
-
-  // 狩人（毎ターン選択）
-  if (game.phase === PHASES.GUARD) {
-    if (!hasRoleAlive(actor, ROLES.GUARD)) { logPush(game, `CPU: P${actorId + 1} 狩人不在 → OK`); advancePhase(game); return; }
-    const pick = cpuPickGuardIndex(game, actor);
-    if (pick === null) { logPush(game, `CPU: P${actorId + 1} 狩人守り → なし`); advancePhase(game); return; }
-    resolveGuard(game, actorId, pick);
-    return;
-  }
-
-  // 噛み（右）
-  if (game.phase === PHASES.BITE) {
-    const right = rightPlayerIndex(game, actorId);
-    if (right === null) { logPush(game, `CPU: P${actorId + 1} 噛み → 対象なし`); advancePhase(game); return; }
-
-    const tgt = game.players[right];
-
-    const candAll = getAliveSlotIndices(tgt).map(i => ({
-      slotIndex: i,
-      slot: tgt.slots[i],
-      mark: getMark(tgt.slots[i]),
-      biteFail: isRecentBiteFail(tgt.slots[i], game.biteNo + 1, 2)
-    }));
-
-    const candPublic = candAll.filter(x => isPublicSeerSlot(game, right, x.slotIndex));
-
-    const actorVillageRoles = villageRolesTotal(actor);
-    const actorOnlySeer =
-      (actorVillageRoles === 1) &&
-      hasRoleAlive(actor, ROLES.SEER) &&
-      !hasRoleAlive(actor, ROLES.GUARD) &&
-      !hasRoleAlive(actor, ROLES.MEDIUM);
-
-    const anyPublicSeerExists = game.publicSeerReveal.some(v => typeof v === "number");
-
-    if (anyPublicSeerExists && actorOnlySeer && candPublic.length) {
-      const pick = pickRandom(candPublic);
-      resolveBite(game, actorId, right, pick.slotIndex);
+    if (leftId == null) {
+      logPush(game, `CPU P${actorId + 1} 吊り → 対象なし`);
+      advancePhase(game);
       return;
     }
-
-    function biteScore(c) {
-      if (c.mark === MARK.WHITE && !c.biteFail) return 100;
-      if (c.mark === MARK.GRAY) return 80;
-      if (c.mark === MARK.WHITE && c.biteFail) return 80;
-      if (c.mark === MARK.BLACK) return 50;
-      return 0;
+    const pick = pickCpuLynchTarget(game.players[leftId]);
+    if (pick == null) {
+      logPush(game, `CPU P${actorId + 1} 吊り → 対象なし`);
+      advancePhase(game);
+      return;
     }
-
-    let best = candAll[0];
-    let bestScore = -1;
-    for (const c of candAll) {
-      const score = biteScore(c) + Math.random() * 0.01;
-      if (score > bestScore) { bestScore = score; best = c; }
-    }
-
-    resolveBite(game, actorId, right, best.slotIndex);
+    applyLynch(game, actorId, leftId, pick);
     return;
   }
-}
 
-/* ============
-   自動進行（同期）
-============ */
-export function isHumanTurn(game) {
-  if (!CONFIG.autoPlayers) return true;
-  if (game.over || game.phase === PHASES.END) return true;
+  if (game.phase === PHASES.RESERVE_A) {
+    if (leftId == null) {
+      advancePhase(game);
+      return;
+    }
+    const pick = pickCpuReserveTarget(game.players[leftId], actor.seenA);
+    if (pick == null) {
+      logPush(game, `CPU P${actorId + 1} 占A予約 → 対象なし`);
+      advancePhase(game);
+      return;
+    }
+    applyReserve(game, actorId, PUBLIC_KIND.A, leftId, pick);
+    return;
+  }
 
-  // 人間がリタイヤしたら人間ターン扱いにしない
-  const human = game.players[CONFIG.humanPlayerId];
-  if (!human.alive) return false;
+  if (game.phase === PHASES.RESERVE_B) {
+    if (leftId == null) {
+      advancePhase(game);
+      return;
+    }
+    const pick = pickCpuReserveTarget(game.players[leftId], actor.seenB);
+    if (pick == null) {
+      logPush(game, `CPU P${actorId + 1} 占B予約 → 対象なし`);
+      advancePhase(game);
+      return;
+    }
+    applyReserve(game, actorId, PUBLIC_KIND.B, leftId, pick);
+    return;
+  }
 
-  return game.turn === CONFIG.humanPlayerId;
+  if (game.phase === PHASES.BITE) {
+    const pick = pickCpuBiteTarget(actor);
+    if (pick == null) {
+      logPush(game, `CPU P${actorId + 1} 噛み → 対象なし`);
+      advancePhase(game);
+      return;
+    }
+    applyBite(game, actorId, pick);
+    return;
+  }
+
+  if (game.phase === PHASES.GUARD) {
+    if (rightId == null) {
+      advancePhase(game);
+      return;
+    }
+    const forbidden = actor.lastGuardTargetId === rightId ? actor.lastGuardSlot : null;
+    const pick = pickCpuGuardTarget(game.players[rightId], forbidden);
+    if (pick == null) {
+      logPush(game, `CPU P${actorId + 1} 守り設定 → 対象なし`);
+      advancePhase(game);
+      return;
+    }
+    applyGuard(game, actorId, rightId, pick);
+  }
 }
 
 export function runAutoUntilHumanTurn(game) {
@@ -600,58 +574,60 @@ export function runAutoUntilHumanTurn(game) {
   while (!game.over && game.phase !== PHASES.END && !isHumanTurn(game)) {
     steps += 1;
     if (steps > CONFIG.autoSafetySteps) {
-      logPush(game, `自動停止: safetySteps超過（無限ループ防止）`);
+      logPush(game, "自動停止: safetySteps超過");
       break;
     }
     cpuDoOneImmediate(game);
   }
 }
 
-/* ============
-   人間の入力（現在フェーズに応じて呼ぶ）
-============ */
 export function applyHumanPick(game, viewAsId, playerId, slotIndex) {
   if (game.over) return;
   if (game.turn !== CONFIG.humanPlayerId) return;
 
   const actorId = game.turn;
   const actor = game.players[actorId];
-  if (!actor.alive) return;
+  if (!actor || !actor.alive) return;
 
-  const left = leftPlayerIndex(game, actorId);
-  const right = rightPlayerIndex(game, actorId);
+  const leftId = leftPlayerIndex(game, actorId);
+  const rightId = rightPlayerIndex(game, actorId);
 
-  // ROUND0 / MAD / GUARD は「自分のスロットのみ」
-  if (game.phase === PHASES.ROUND0_MAD || game.phase === PHASES.MAD) {
-    if (playerId !== actorId) return;
-    resolveMadPick(game, actorId, slotIndex);
-    return;
-  }
-  if (game.phase === PHASES.ROUND0_GUARD || game.phase === PHASES.GUARD) {
-    if (playerId !== actorId) return;
-    resolveGuard(game, actorId, slotIndex);
-    return;
-  }
-
-  // SEER / LYNCH は「左のプレイヤーのみ」
-  if (game.phase === PHASES.SEER) {
-    if (left === null) { resolveSeer(game, actorId, null, 0); return; }
-    if (playerId !== left) return;
-    resolveSeer(game, actorId, playerId, slotIndex);
-    return;
-  }
   if (game.phase === PHASES.LYNCH) {
-    if (left === null) { logPush(game, `P${actorId + 1} 吊り → 対象なし`); advancePhase(game); return; }
-    if (playerId !== left) return;
-    resolveLynch(game, actorId, playerId, slotIndex);
+    if (leftId == null || playerId !== leftId) return;
+    applyLynch(game, actorId, playerId, slotIndex);
     return;
   }
 
-  // BITE は「右のプレイヤーのみ」
-  if (game.phase === PHASES.BITE) {
-    if (right === null) { logPush(game, `P${actorId + 1} 噛み → 対象なし`); advancePhase(game); return; }
-    if (playerId !== right) return;
-    resolveBite(game, actorId, playerId, slotIndex);
+  if (game.phase === PHASES.RESERVE_A) {
+    if (leftId == null || playerId !== leftId) return;
+    applyReserve(game, actorId, PUBLIC_KIND.A, playerId, slotIndex);
     return;
   }
+
+  if (game.phase === PHASES.RESERVE_B) {
+    if (leftId == null || playerId !== leftId) return;
+    applyReserve(game, actorId, PUBLIC_KIND.B, playerId, slotIndex);
+    return;
+  }
+
+  if (game.phase === PHASES.BITE) {
+    if (playerId !== actorId) return;
+    applyBite(game, actorId, slotIndex);
+    return;
+  }
+
+  if (game.phase === PHASES.GUARD) {
+    if (rightId == null || playerId !== rightId) return;
+    applyGuard(game, actorId, playerId, slotIndex);
+  }
+}
+
+export function phaseLabel(phase) {
+  if (phase === PHASES.LYNCH) return "吊り";
+  if (phase === PHASES.RESERVE_A) return "占A予約";
+  if (phase === PHASES.RESERVE_B) return "占B予約";
+  if (phase === PHASES.BITE) return "噛み";
+  if (phase === PHASES.GUARD) return "守り設定";
+  if (phase === PHASES.END) return "終了";
+  return "";
 }
