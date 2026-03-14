@@ -3,12 +3,9 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
-  <title>Werewolf Slots</title>
-
-  <!-- ★CSSは /css に入れてる前提 -->
+  <title>Werewolf Slots 3P</title>
   <link rel="stylesheet" href="./css/style.css" />
 
-  <!-- ★モジュールが落ちた時でも、画面にエラーを出す -->
   <script>
     window.addEventListener("error", (e) => {
       const s = document.getElementById("txtStatus");
@@ -30,9 +27,9 @@
     <div id="app">
       <header id="topbar">
         <div class="toprow">
-          <div class="title">人狼</div>
-          <div class="controls">
+          <div class="title">人狼 3P</div>
 
+          <div class="controls">
             <button id="btnCpuMode">ON</button>
             <button id="btnNew">New</button>
 
@@ -42,12 +39,10 @@
                 <option value="0">P1</option>
                 <option value="1">P2</option>
                 <option value="2">P3</option>
-                <option value="3">P4</option>
               </select>
             </label>
 
-            <button id="btnAbsentOk" class="ghost">不在→OK</button>
-            
+            <button id="btnAbsentOk" class="ghost">対象なし→OK</button>
           </div>
         </div>
 
@@ -63,7 +58,6 @@
     </div>
   </div>
 
-  <!-- ★JSは /js に入れてる前提。絶対パス(/js/)はやめて相対に統一 -->
   <script type="module" src="./js/main.js"></script>
 </body>
 </html>
