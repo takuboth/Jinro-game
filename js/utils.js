@@ -1,150 +1,271 @@
-import { ROLES, MARK } from "./config.js";
+import { CONFIG, ROLES, MARK, PUBLIC_KIND } from "./config.js";
 
-export function nowStamp(){
+export function nowStamp() {
   const d = new Date();
-  const hh = String(d.getHours()).padStart(2,"0");
-  const mm = String(d.getMinutes()).padStart(2,"0");
-  const ss = String(d.getSeconds()).padStart(2,"0");
+  const hh = String(d.getHours()).padStart(2, "0");
+  const mm = String(d.getMinutes()).padStart(2, "0");
+  const ss = String(d.getSeconds()).padStart(2, "0");
   return `${hh}:${mm}:${ss}`;
 }
 
-export function shuffle(arr){
+export function shuffle(arr) {
   const a = arr.slice();
-  for (let i=a.length-1;i>0;i--){
-    const j = Math.floor(Math.random()*(i+1));
-    [a[i],a[j]] = [a[j],a[i]];
+  for (let i = a.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [a[i], a[j]] = [a[j], a[i]];
   }
   return a;
 }
 
-export function pickRandom(arr){
-  if (!arr.length) return null;
-  return arr[Math.floor(Math.random()*arr.length)];
+export function pickRandom(arr) {
+  if (!arr || !arr.length) return null;
+  return arr[Math.floor(Math.random() * arr.length)];
 }
 
-export function getAliveSlotIndices(pl){
-  const out = [];
-  for (let i=0;i<pl.slots.length;i++){
-    if (!pl.slots[i].dead) out.push(i);
+export function roleChar(role) {
+  if (role === ROLES.WOLF) return "狼";
+  if (role === ROLES.SEER) return "占";
+  if (role === ROLES.MAD) return "狂";
+  if (role === ROLES.MEDIUM) return "霊";
+  if (role === ROLES.GUARD) return "狩";
+  return "村";
+}
+
+export function publicLabel(kind) {
+  if (kind === PUBLIC_KIND.A) return "占A";
+  if (kind === PUBLIC_KIND.B) return "占B";
+  if (kind === PUBLIC_KIND.MEDIUM) return "霊";
+  return "";
+}
+
+export function fullRevealPublicLabel(slot) {
+  if (slot.publicKind === PUBLIC_KIND.A || slot.publicKind === PUBLIC_KIND.B) {
+    return roleChar(slot.role);
   }
-  return out;
+  if (slot.publicKind === PUBLIC_KIND.MEDIUM) return "霊";
+  return "";
 }
 
-export function getGuardableSlotIndices(pl){
-  const out = [];
-  for (let i=0;i<pl.slots.length;i++){
-    const s = pl.slots[i];
-    if (s.dead) continue;
-    if (s.role === ROLES.GUARD) continue;
-    if (s.role === ROLES.WOLF) continue;
-    out.push(i);
-  }
-  return out;
+export function isWolf(role) {
+  return role === ROLES.WOLF;
 }
 
-export function getMark(slot){
-  const last = slot.publicSeer?.last ?? null; // "白" | "黒" | null
-  if (last === "白") return MARK.WHITE;
-  if (last === "黒") return MARK.BLACK;
-  return MARK.GRAY;
+export function colorFromRole(role) {
+  return isWolf(role) ? MARK.BLACK : MARK.WHITE;
 }
 
-export function isPublicSeerSlot(game, playerId, slotIndex){
-  const idx = game.publicSeerReveal?.[playerId];
-  return (typeof idx === "number") && idx === slotIndex;
+export function isPublicSlot(slot) {
+  return !!slot.isPublic;
 }
 
-// 噛み不発が「直近2回」以内か、みたいな判定用（今は雑に）
-export function isRecentBiteFail(slot, currentBiteNo, within){
-  if (!slot.biteFailTurn) return false;
-  return (currentBiteNo - slot.biteFailTurn) <= within;
+export function isHiddenSlot(slot) {
+  return !slot.isPublic;
 }
 
-/* 優先順位で1つ選ぶ（同率は先頭） */
-export function pickByMarkPriority(cands, order){
-  for (const m of order){
-    const hits = cands.filter(x => getMark(x.slot) === m);
-    if (hits.length) return pickRandom(hits);
-  }
-  return pickRandom(cands);
+export function getPublicSlotIndexByKind(player, kind) {
+  const idx = player.slots.findIndex(s => s.isPublic && s.publicKind === kind);
+  return idx >= 0 ? idx : null;
 }
 
-/* 優先＋同率ボーナス（ランダム少し） */
-export function pickByMarkPriorityWithTieBonus(cands, order, bonusFn){
-  let best = null;
-  let bestScore = -1;
-
-  function baseScore(mark){
-    const idx = order.indexOf(mark);
-    return (idx === -1) ? 0 : (order.length - idx) * 10;
-  }
-
-  for (const c of cands){
-    const score =
-      baseScore(getMark(c.slot)) +
-      (bonusFn ? bonusFn(c) : 0) +
-      Math.random()*0.01;
-    if (score > bestScore){
-      bestScore = score;
-      best = c;
-    }
-  }
-  return best ?? cands[0];
+export function getAliveSlots(player) {
+  return player.slots
+    .map((slot, index) => ({ slot, index }))
+    .filter(x => !x.slot.dead);
 }
 
-/* CPUの雑ロジック */
-export function cpuPickMadInvertIndexByWolfStock(actor){
-  const alive = getAliveSlotIndices(actor);
+export function getAliveHiddenSlots(player) {
+  return player.slots
+    .map((slot, index) => ({ slot, index }))
+    .filter(x => !x.slot.dead && !x.slot.isPublic);
+}
+
+export function getAliveBiteTargets(player) {
+  return player.slots
+    .map((slot, index) => ({ slot, index }))
+    .filter(x => !x.slot.dead && x.slot.role !== ROLES.WOLF);
+}
+
+export function hasAliveRole(player, role) {
+  return player.slots.some(s => !s.dead && s.role === role);
+}
+
+export function countAliveRole(player, role) {
+  return player.slots.filter(s => !s.dead && s.role === role).length;
+}
+
+export function countAliveWolves(player) {
+  return countAliveRole(player, ROLES.WOLF);
+}
+
+export function countAliveNonWolves(player) {
+  return player.slots.filter(s => !s.dead && s.role !== ROLES.WOLF).length;
+}
+
+export function countAliveOpenAndHidden(player) {
+  return player.slots.filter(s => !s.dead).length;
+}
+
+export function isLineAlive(player, kind) {
+  const idx = getPublicSlotIndexByKind(player, kind);
+  if (idx == null) return false;
+  return !player.slots[idx].dead;
+}
+
+export function getLineRole(player, kind) {
+  const idx = getPublicSlotIndexByKind(player, kind);
+  if (idx == null) return null;
+  return player.slots[idx].role;
+}
+
+export function getTrueLineKind(player) {
+  const roleA = getLineRole(player, PUBLIC_KIND.A);
+  if (roleA === ROLES.SEER) return PUBLIC_KIND.A;
+  return PUBLIC_KIND.B;
+}
+
+export function getFakeLineKind(player) {
+  return getTrueLineKind(player) === PUBLIC_KIND.A ? PUBLIC_KIND.B : PUBLIC_KIND.A;
+}
+
+export function sameTarget(a, b) {
+  if (!a || !b) return false;
+  return a.targetId === b.targetId && a.slotIndex === b.slotIndex;
+}
+
+export function makeEmptySeenMap() {
+  return Array(CONFIG.slotCount).fill(false);
+}
+
+export function hiddenReserveCandidates(player, seenMap) {
+  return player.slots
+    .map((slot, index) => ({ slot, index }))
+    .filter(x => !x.slot.dead && !x.slot.isPublic && !seenMap[x.index]);
+}
+
+export function markScore(slot) {
+  const a = slot.seerA;
+  const b = slot.seerB;
+  const m = slot.medium;
+
+  const vals = [a, b, m];
+  if (vals.includes(MARK.BLACK)) return 3;
+  if (vals.includes(MARK.WHITE)) return 1;
+  return 2;
+}
+
+export function pickCpuLynchTarget(player) {
+  const alive = getAliveSlots(player);
   if (!alive.length) return null;
 
-  const wolfAlive = alive.filter(i => actor.slots[i].role === ROLES.WOLF);
-  const villagerAlive = alive.filter(i => actor.slots[i].role === ROLES.VILLAGER);
-  const otherAlive = alive.filter(i => {
-    const r = actor.slots[i].role;
-    return r !== ROLES.WOLF && r !== ROLES.VILLAGER;
-  });
+  let best = null;
+  let bestScore = -999;
+  for (const x of alive) {
+    let score = 0;
+    const s = x.slot;
 
-  // 狼が2枚生きている間は、村人を黒に見せたい
-  if (wolfAlive.length >= 2) {
-    if (villagerAlive.length) return pickRandom(villagerAlive);
-    if (otherAlive.length) return pickRandom(otherAlive);
-    return pickRandom(wolfAlive);
+    if (s.seerA === MARK.BLACK) score += 50;
+    if (s.seerB === MARK.BLACK) score += 50;
+    if (s.medium === MARK.BLACK) score += 30;
+
+    if (s.seerA === MARK.WHITE) score -= 15;
+    if (s.seerB === MARK.WHITE) score -= 15;
+    if (s.medium === MARK.WHITE) score -= 10;
+
+    if (s.isPublic) score -= 4;
+
+    score += Math.random() * 0.01;
+
+    if (score > bestScore) {
+      bestScore = score;
+      best = x.index;
+    }
   }
-
-  // 狼が1枚になったら、その狼を白に見せたい
-  if (wolfAlive.length === 1) {
-    return wolfAlive[0];
-  }
-
-  return pickRandom(alive);
+  return best;
 }
 
-export function cpuPickGuardIndex(game, actor){
-  const cand = getGuardableSlotIndices(actor).map(i => ({
-    slotIndex: i,
-    slot: actor.slots[i],
-  }));
-  if (!cand.length) return null;
+export function pickCpuReserveTarget(player, seenMap) {
+  const cands = hiddenReserveCandidates(player, seenMap);
+  if (!cands.length) return null;
 
-  const publicCands = cand.filter(x => isPublicSeerSlot(game, actor.id, x.slotIndex));
-  const nonPublicCands = cand.filter(x => !isPublicSeerSlot(game, actor.id, x.slotIndex));
+  let best = null;
+  let bestScore = -999;
+  for (const x of cands) {
+    let score = 0;
+    const s = x.slot;
 
-  const alivePlayers = game.players.filter(p => p.alive).length;
-  const isDuel = alivePlayers === 2;
+    if (s.seerA === MARK.BLACK || s.seerB === MARK.BLACK || s.medium === MARK.BLACK) score += 40;
+    else if (s.seerA === MARK.WHITE || s.seerB === MARK.WHITE || s.medium === MARK.WHITE) score -= 10;
+    else score += 5;
 
-  // タイマン時は公開占い優先
-  if (isDuel) {
-    if (publicCands.length) return pickRandom(publicCands).slotIndex;
+    score += Math.random() * 0.01;
 
-    const pick = pickByMarkPriority(nonPublicCands, [MARK.WHITE, MARK.GRAY, MARK.BLACK]);
-    return pick ? pick.slotIndex : null;
+    if (score > bestScore) {
+      bestScore = score;
+      best = x.index;
+    }
   }
+  return best;
+}
 
-  // 通常時は 白 > グレー > 公開占い
-  const nonPublicPick = pickByMarkPriority(nonPublicCands, [MARK.WHITE, MARK.GRAY, MARK.BLACK]);
-  if (nonPublicPick) return nonPublicPick.slotIndex;
+export function pickCpuBiteTarget(player) {
+  const cands = getAliveBiteTargets(player);
+  if (!cands.length) return null;
 
-  if (publicCands.length) return pickRandom(publicCands).slotIndex;
+  let best = null;
+  let bestScore = -999;
+  for (const x of cands) {
+    let score = 0;
+    const s = x.slot;
 
-  return null;
+    if (s.seerA === MARK.WHITE) score += 35;
+    if (s.seerB === MARK.WHITE) score += 35;
+    if (s.medium === MARK.WHITE) score += 10;
+
+    if (s.seerA === MARK.BLACK) score -= 20;
+    if (s.seerB === MARK.BLACK) score -= 20;
+    if (s.medium === MARK.BLACK) score -= 8;
+
+    if (s.isPublic) score += 5;
+
+    score += Math.random() * 0.01;
+
+    if (score > bestScore) {
+      bestScore = score;
+      best = x.index;
+    }
+  }
+  return best;
+}
+
+export function pickCpuGuardTarget(rightPlayer, forbiddenSlotIndex) {
+  const cands = rightPlayer.slots
+    .map((slot, index) => ({ slot, index }))
+    .filter(x => !x.slot.dead && x.index !== forbiddenSlotIndex);
+
+  if (!cands.length) return null;
+
+  let best = null;
+  let bestScore = -999;
+  for (const x of cands) {
+    let score = 0;
+    const s = x.slot;
+
+    if (s.seerA === MARK.WHITE) score += 20;
+    if (s.seerB === MARK.WHITE) score += 20;
+    if (s.medium === MARK.WHITE) score += 5;
+
+    if (s.seerA === MARK.BLACK) score -= 15;
+    if (s.seerB === MARK.BLACK) score -= 15;
+    if (s.medium === MARK.BLACK) score -= 5;
+
+    if (s.isPublic) score += 3;
+
+    score += Math.random() * 0.01;
+
+    if (score > bestScore) {
+      bestScore = score;
+      best = x.index;
+    }
+  }
+  return best;
 }
