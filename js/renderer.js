@@ -116,6 +116,14 @@ export function buildRenderer(root, onPick) {
     if (txtStatus) txtStatus.textContent = vm.status ?? "---";
     if (txtActing) txtActing.textContent = vm.acting ?? "---";
 
+    // View as の人が中央になる順で並べ替え
+    const order = Array.isArray(vm.displayOrder) ? vm.displayOrder : vm.players.map(p => p.id);
+    for (const id of order) {
+      if (playerCards[id]) {
+        playersEl.appendChild(playerCards[id].card);
+      }
+    }
+
     for (let p = 0; p < CONFIG.playerCount; p++) {
       const vPl = vm.players[p];
       const pc = playerCards[p];
