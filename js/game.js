@@ -82,14 +82,19 @@ function makePlayer(id) {
 
     slots: [...makePublicSlots(), ...makeHiddenSlots()],
 
+    // 占A / 占B の再占い禁止管理（インデックス単位）
     seenA: makeEmptySeenMap(),
     seenB: makeEmptySeenMap(),
 
+    // 次ターン表示予定
     pendingA: null,
     pendingB: null,
     pendingMedium: null,
 
+    // 右から渡される守り先
     guardIncomingSlot: null,
+
+    // このプレイヤーが前回右に設定した守り先（連続ガード禁止用）
     lastGuardTargetId: null,
     lastGuardSlot: null,
   };
@@ -112,37 +117,38 @@ export function makeNewGame() {
 
   applyInitialReservations(game);
   logPush(game, "初期占い結果を配置");
+
   return game;
 }
 
 function applyInitialReservations(game) {
   for (let actorId = 0; actorId < game.players.length; actorId++) {
-    const actor = game.players[actorId];
     const leftId = leftPlayerIndex(game, actorId);
     if (leftId == null) continue;
 
-    const target = game.players[leftId];
-    const cands = target.slots
+    const leftPlayer = game.players[leftId];
+    const cands = leftPlayer.slots
       .map((slot, index) => ({ slot, index }))
       .filter(x => !x.slot.dead && x.slot.role !== ROLES.WOLF);
 
     if (!cands.length) continue;
 
     const pickA = pickRandom(cands);
-    let pickB = pickRandom(cands);
+    const pickB = pickRandom(cands) ?? pickA;
 
-    if (!pickB) pickB = pickA;
-
-    actor.pendingA = { targetId: leftId, slotIndex: pickA.index };
-    actor.pendingB = { targetId: leftId, slotIndex: pickB.index };
-
-    if (pickA) actor.seenA[pickA.index] = true;
-    if (pickB) actor.seenB[pickB.index] = true;
+    if (pickA) {
+      game.players[actorId].pendingA = { targetId: leftId, slotIndex: pickA.index };
+      game.players[actorId].seenA[pickA.index] = true;
+    }
+    if (pickB) {
+      game.players[actorId].pendingB = { targetId: leftId, slotIndex: pickB.index };
+      game.players[actorId].seenB[pickB.index] = true;
+    }
 
     revealPendingReportsForActor(game, actorId);
 
-    actor.pendingA = null;
-    actor.pendingB = null;
+    game.players[actorId].pendingA = null;
+    game.players[actorId].pendingB = null;
   }
 }
 
@@ -172,6 +178,8 @@ function nextTurn(game) {
   }
   game.turn = next;
   game.phase = PHASES.LYNCH;
+
+  // 次の手番プレイヤーの「左の村」に基づく占い/霊媒結果をここで表示
   revealPendingReportsForActor(game, game.turn);
 }
 
@@ -193,7 +201,7 @@ function killSlot(game, playerId, slotIndex, reason) {
   return true;
 }
 
-function clearRevealStateOnFinish(player) {
+function clearOnFinish(player) {
   player.guardIncomingSlot = null;
 }
 
@@ -206,7 +214,7 @@ function finalizePlayerState(game, player) {
   if (wolves >= nonWolves && player.slots.some(s => !s.dead)) {
     player.alive = false;
     player.escaped = true;
-    clearRevealStateOnFinish(player);
+    clearOnFinish(player);
     if (!game.winners.includes(player.id)) {
       game.winners.push(player.id);
     }
@@ -217,7 +225,7 @@ function finalizePlayerState(game, player) {
   if (wolves === 0) {
     player.alive = false;
     player.escaped = false;
-    clearRevealStateOnFinish(player);
+    clearOnFinish(player);
     logPush(game, `P${player.id + 1} リタイア`);
   }
 }
@@ -244,8 +252,19 @@ function revealPendingReportsForActor(game, actorId) {
   const actor = game.players[actorId];
   if (!actor || !actor.alive) return;
 
-  const trueKind = getTrueLineKind(actor);
-  const fakeKind = getFakeLineKind(actor);
+  const leftId = leftPlayerIndex(game, actorId);
+  if (leftId == null) {
+    actor.pendingA = null;
+    actor.pendingB = null;
+    actor.pendingMedium = null;
+    return;
+  }
+
+  const leftPlayer = game.players[leftId];
+
+  // 左の村の公開A/Bの中身で、真占いラインと偽占いラインを決める
+  const trueKind = getTrueLineKind(leftPlayer);
+  const fakeKind = getFakeLineKind(leftPlayer);
 
   const pendingByKind = {
     [PUBLIC_KIND.A]: actor.pendingA,
@@ -257,13 +276,15 @@ function revealPendingReportsForActor(game, actorId) {
 
   let trueColor = null;
 
-  if (truePending && isLineAlive(actor, trueKind)) {
-    const tgt = game.players[truePending.targetId];
-    const slot = tgt?.slots?.[truePending.slotIndex];
-    if (slot) {
-      trueColor = colorFromRole(slot.role);
-      if (trueKind === PUBLIC_KIND.A) slot.seerA = trueColor;
-      else slot.seerB = trueColor;
+  // 真占い結果：左の村の真占いラインが生きている場合のみ表示
+  if (truePending && isLineAlive(leftPlayer, trueKind)) {
+    const tgtPlayer = game.players[truePending.targetId];
+    const tgtSlot = tgtPlayer?.slots?.[truePending.slotIndex];
+    if (tgtSlot) {
+      trueColor = colorFromRole(tgtSlot.role);
+
+      if (trueKind === PUBLIC_KIND.A) tgtSlot.seerA = trueColor;
+      else tgtSlot.seerB = trueColor;
 
       logPush(
         game,
@@ -272,18 +293,19 @@ function revealPendingReportsForActor(game, actorId) {
     }
   }
 
-  if (fakePending && isLineAlive(actor, fakeKind) && trueColor !== null) {
-    const tgt = game.players[fakePending.targetId];
-    const slot = tgt?.slots?.[fakePending.slotIndex];
-    if (slot) {
+  // 偽占い結果：左の村の偽占いラインが生きていて、かつ真結果が計算できた場合のみ表示
+  if (fakePending && isLineAlive(leftPlayer, fakeKind) && trueColor !== null) {
+    const tgtPlayer = game.players[fakePending.targetId];
+    const tgtSlot = tgtPlayer?.slots?.[fakePending.slotIndex];
+    if (tgtSlot) {
       const same = sameTarget(fakePending, truePending);
       const fakeColor =
         same
           ? (trueColor === MARK.BLACK ? MARK.WHITE : MARK.BLACK)
           : trueColor;
 
-      if (fakeKind === PUBLIC_KIND.A) slot.seerA = fakeColor;
-      else slot.seerB = fakeColor;
+      if (fakeKind === PUBLIC_KIND.A) tgtSlot.seerA = fakeColor;
+      else tgtSlot.seerB = fakeColor;
 
       logPush(
         game,
@@ -292,11 +314,12 @@ function revealPendingReportsForActor(game, actorId) {
     }
   }
 
-  if (actor.pendingMedium && isLineAlive(actor, PUBLIC_KIND.MEDIUM)) {
-    const tgt = game.players[actor.pendingMedium.targetId];
-    const slot = tgt?.slots?.[actor.pendingMedium.slotIndex];
-    if (slot) {
-      slot.medium = actor.pendingMedium.color;
+  // 霊媒結果：左の村の霊媒が生きている場合のみ表示
+  if (actor.pendingMedium && isLineAlive(leftPlayer, PUBLIC_KIND.MEDIUM)) {
+    const tgtPlayer = game.players[actor.pendingMedium.targetId];
+    const tgtSlot = tgtPlayer?.slots?.[actor.pendingMedium.slotIndex];
+    if (tgtSlot) {
+      tgtSlot.medium = actor.pendingMedium.color;
       logPush(
         game,
         `P${actorId + 1} 霊媒結果 → P${actor.pendingMedium.targetId + 1} S${actor.pendingMedium.slotIndex + 1} = ${actor.pendingMedium.color === MARK.BLACK ? "黒" : "白"}`
@@ -336,12 +359,15 @@ function advancePhase(game) {
 
 export function applyLynch(game, actorId, targetId, slotIndex) {
   if (game.over) return;
+
   const target = game.players[targetId];
   const slot = target?.slots?.[slotIndex];
   if (!target || !slot || slot.dead) return;
 
   killSlot(game, targetId, slotIndex, DEATH.LYNCH);
 
+  // この吊り結果は、次に actor の手番が来たとき、
+  // 「その時の左の村に霊媒が生きていれば」表示される
   game.players[actorId].pendingMedium = {
     targetId,
     slotIndex,
@@ -358,8 +384,10 @@ export function applyReserve(game, actorId, lineKind, targetId, slotIndex) {
   const actor = game.players[actorId];
   const target = game.players[targetId];
   const slot = target?.slots?.[slotIndex];
-
   if (!target || !slot || slot.dead || slot.isPublic) return;
+
+  // 占A / 占B は「左の村」に該当ラインが生きているときのみ予約可能
+  if (!isLineAlive(target, lineKind)) return;
 
   if (lineKind === PUBLIC_KIND.A) {
     if (actor.seenA[slotIndex]) return;
@@ -383,13 +411,9 @@ export function applyBite(game, actorId, slotIndex) {
   const slot = actor?.slots?.[slotIndex];
   if (!slot || slot.dead || slot.role === ROLES.WOLF) return;
 
-  const defenderId = leftPlayerIndex(game, actorId);
-  const defender = defenderId == null ? null : game.players[defenderId];
-
+  // 狩人は「この村」に生きている時だけ有効
   const guardActive =
-    defender &&
-    defender.alive &&
-    hasAliveRole(defender, ROLES.GUARD) &&
+    hasAliveRole(actor, ROLES.GUARD) &&
     actor.guardIncomingSlot === slotIndex;
 
   if (guardActive) {
@@ -410,6 +434,7 @@ export function applyGuard(game, actorId, targetId, slotIndex) {
   const slot = target?.slots?.[slotIndex];
   if (!target || !slot || slot.dead) return;
 
+  // 選択自体は常にする。右の村に狩人が死んでいれば効果なしになるだけ
   target.guardIncomingSlot = slotIndex;
   actor.lastGuardTargetId = targetId;
   actor.lastGuardSlot = slotIndex;
@@ -431,12 +456,16 @@ export function canAbsentOk(game) {
 
   if (game.phase === PHASES.RESERVE_A) {
     if (leftId == null) return true;
-    return hiddenReserveCandidates(game.players[leftId], actor.seenA).length === 0;
+    const left = game.players[leftId];
+    if (!isLineAlive(left, PUBLIC_KIND.A)) return true;
+    return hiddenReserveCandidates(left, actor.seenA).length === 0;
   }
 
   if (game.phase === PHASES.RESERVE_B) {
     if (leftId == null) return true;
-    return hiddenReserveCandidates(game.players[leftId], actor.seenB).length === 0;
+    const left = game.players[leftId];
+    if (!isLineAlive(left, PUBLIC_KIND.B)) return true;
+    return hiddenReserveCandidates(left, actor.seenB).length === 0;
   }
 
   if (game.phase === PHASES.GUARD) {
@@ -456,6 +485,7 @@ export function doAbsentOk(game) {
   if (!canAbsentOk(game)) return;
 
   const actorId = game.turn;
+
   if (game.phase === PHASES.RESERVE_A) {
     logPush(game, `P${actorId + 1} 占A予約 → 対象なしでスキップ`);
     advancePhase(game);
@@ -515,7 +545,13 @@ export function cpuDoOneImmediate(game) {
       advancePhase(game);
       return;
     }
-    const pick = pickCpuReserveTarget(game.players[leftId], actor.seenA);
+    const left = game.players[leftId];
+    if (!isLineAlive(left, PUBLIC_KIND.A)) {
+      logPush(game, `CPU P${actorId + 1} 占A予約 → 占A死亡でスキップ`);
+      advancePhase(game);
+      return;
+    }
+    const pick = pickCpuReserveTarget(left, actor.seenA);
     if (pick == null) {
       logPush(game, `CPU P${actorId + 1} 占A予約 → 対象なし`);
       advancePhase(game);
@@ -530,7 +566,13 @@ export function cpuDoOneImmediate(game) {
       advancePhase(game);
       return;
     }
-    const pick = pickCpuReserveTarget(game.players[leftId], actor.seenB);
+    const left = game.players[leftId];
+    if (!isLineAlive(left, PUBLIC_KIND.B)) {
+      logPush(game, `CPU P${actorId + 1} 占B予約 → 占B死亡でスキップ`);
+      advancePhase(game);
+      return;
+    }
+    const pick = pickCpuReserveTarget(left, actor.seenB);
     if (pick == null) {
       logPush(game, `CPU P${actorId + 1} 占B予約 → 対象なし`);
       advancePhase(game);
