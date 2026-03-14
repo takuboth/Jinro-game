@@ -1,22 +1,13 @@
-/* /css/style.css
-   - appH=640
-   - スロット角R9
-   - スロットSVGを本体として使う
-   - オーブは色だけCSSで下に置く
-   - slot.svg はオーブの上、文字の下
-*/
-
 :root{
   --appW: 360px;
   --appH: 640px;
 
-  --slotW: 48px;
-  --slotH: 72px;
-  --slotGap: 5px;
+  --slotW: 44px;
+  --slotH: 58px;
+  --slotGap: 4px;
 
-  /* オーブ */
-  --orbOuter: 12px;
-  --orbCore: 8px;
+  --orbOuter: 11px;
+  --orbCore: 7px;
   --ringW: 2px;
 
   --c-bg: #f6f7fb;
@@ -26,12 +17,10 @@
   --c-sub: #666;
 
   --c-gray: #9aa0a6;
-  --c-guard: #2da9ff;
-  --c-invert: #a94dff;
-  --c-white: #f0f0f0;
+  --c-white: #f2f2f2;
   --c-black: #111;
-  --c-gold: #ff0000;
-  --c-red: #d4af37;
+  --c-blue: #3b82f6;
+  --c-red: #ef4444;
 
   --hl: rgba(45,169,255,0.35);
 }
@@ -52,38 +41,35 @@ body{
   display: flex;
   align-items: flex-start;
   justify-content: center;
-  padding: 6px;   /* 12 → 6 */
+  padding: 6px;
 }
 
 #app{
   width: var(--appW);
-  height: var(--appH);
+  min-height: var(--appH);
   background: var(--c-bg);
   border-radius: 14px;
   overflow: hidden;
   box-shadow: 0 10px 30px rgba(0,0,0,0.35);
-  position: relative;
 }
 
-/* ============
-   Topbar
-============ */
 #topbar{
-  padding: 10px 10px 8px;
+  padding: 8px 8px 6px;
   background: #fff;
   border-bottom: 1px solid var(--c-line);
 }
 
 .toprow{
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   justify-content: space-between;
-  gap: 10px;
+  gap: 8px;
 }
 
 .title{
   font-weight: 700;
   font-size: 14px;
+  white-space: nowrap;
 }
 
 .controls{
@@ -98,8 +84,8 @@ button{
   border: 1px solid var(--c-line);
   background: #fff;
   border-radius: 10px;
-  padding: 6px 10px;
-  font-size: 12px;
+  padding: 5px 8px;
+  font-size: 11px;
 }
 
 button.ghost{
@@ -112,17 +98,17 @@ button:disabled{
 
 label.inline{
   display: flex;
-  gap: 6px;
+  gap: 5px;
   align-items: center;
-  font-size: 12px;
+  font-size: 11px;
   color: var(--c-sub);
 }
 
 select{
   border: 1px solid var(--c-line);
   border-radius: 10px;
-  padding: 5px 8px;
-  font-size: 12px;
+  padding: 4px 6px;
+  font-size: 11px;
   background: #fff;
 }
 
@@ -144,33 +130,26 @@ select{
   text-align: right;
 }
 
-/* ============
-   Board
-============ */
 #board{
-  padding: 6px;     /* 8 → 6 */
-  display: flex;
-  flex-direction: column;
-  gap: 8px;         /* 10 → 8 */
+  padding: 6px;
 }
 
 .players{
   display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 6px;   /* 8 → 6 */
+  grid-template-columns: repeat(3, 1fr);
+  gap: 4px;
+  align-items: start;
 }
 
-/* ============
-   Player
-============ */
 .player{
   background: var(--c-panel);
   border: 1px solid var(--c-line);
-  border-radius: 14px;
-  padding: 6px;   /* 8 → 6 */
+  border-radius: 12px;
+  padding: 4px;
   display: flex;
   flex-direction: column;
-  gap: 6px;
+  gap: 4px;
+  min-width: 0;
 }
 
 .player.dim{
@@ -181,90 +160,52 @@ select{
 .playerHeader{
   display: flex;
   justify-content: space-between;
-  align-items: flex-start;
-  gap: 8px;
-}
-.playerHeader{
-  position: relative;
+  gap: 4px;
+  min-width: 0;
 }
 
-.playerResult{
-  position: absolute;
-  right: 0;
-  top: 0;
-  font-size: 12px;
-  font-weight: 700;
-  pointer-events: none;
+.playerHeadLeft,
+.playerHeadRight{
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
 }
+
+.playerHeadRight{
+  align-items: flex-end;
+}
+
 .pname{
   font-weight: 700;
-  font-size: 13px;
+  font-size: 12px;
 }
 
-.badges{
-  display: flex;
-  gap: 6px;
-  flex-wrap: wrap;
-  justify-content: flex-end;
+.prelation{
+  font-size: 10px;
+  color: var(--c-sub);
 }
 
-.badge{
-  border: 1px solid var(--c-line);
-  background: #fff;
-  padding: 2px 6px;
-  border-radius: 999px;
-  font-size: 11px;
-  color: #333;
-  white-space: nowrap;
-}
-
-.badge.mediumOn{
-  border-color: #222;
-  color: #222;
-  background: #fff;
-}
-
-.badge.mediumOff{
-  border-color: #bbb;
-  color: #777;
-  background: #f7f7f7;
-}
-
-.badge.mediumNone{
-  border-color: #ddd;
-  color: #aaa;
-  background: #fafafa;
-}
-
-.badge.retired{
-  border-color: #ddd;
-  color: #aaa;
-  background: #fafafa;
+.counts{
+  font-size: 10px;
+  color: #444;
+  text-align: right;
 }
 
 .playerResult{
-  position: absolute;
-  top: 4px;
-  right: 6px;
-  font-size: 12px;
+  font-size: 11px;
   font-weight: 700;
-  pointer-events: none;
+  line-height: 1;
 }
 
-/* ============
-   Grid
-============ */
 .grid{
   display: grid;
-  grid-template-columns: repeat(3, var(--slotW));
-  grid-template-rows: repeat(3, var(--slotH));
+  grid-template-columns: repeat(2, var(--slotW));
+  grid-template-rows: repeat(5, var(--slotH));
   gap: var(--slotGap);
   justify-content: center;
 }
 
-/* ============
-   Slot
-============ */
 .slot{
   width: var(--slotW);
   height: var(--slotH);
@@ -275,14 +216,8 @@ select{
   border-radius: 9px;
 }
 
-/* CSSの旧カード影は使わない */
-.slot::before{
-  content: none;
-}
-
-.slot.dead,
-.slot.disabled{
-  filter: grayscale(100%) brightness(0.80);
+.slot.dead{
+  filter: grayscale(100%) brightness(0.82);
 }
 
 .slot.clickable:hover{
@@ -290,16 +225,6 @@ select{
   outline-offset: 1px;
 }
 
-.slot.selected{
-  box-shadow:
-    0 0 0 2px var(--hl),
-    0 0 10px rgba(45,169,255,0.25);
-}
-
-/* ============
-   Orbs
-   下：色だけ
-============ */
 .orb{
   position: absolute;
   width: var(--orbOuter);
@@ -323,8 +248,8 @@ select{
   z-index: 1;
 }
 
-.orb.public .ring{
-  box-shadow: 0 0 0 var(--ringW) rgba(212,175,55,0.95) inset;
+.orb.active .ring{
+  box-shadow: 0 0 0 var(--ringW) rgba(60,60,60,0.95) inset;
 }
 
 .orb .core{
@@ -344,14 +269,6 @@ select{
   opacity: 1;
 }
 
-.core.guard{
-  background: var(--c-guard);
-}
-
-.core.invert{
-  background: var(--c-invert);
-}
-
 .core.gray{
   background: var(--c-gray);
 }
@@ -365,14 +282,17 @@ select{
   background: var(--c-black);
 }
 
-/* ============
-   Slot SVG
-   オーブの上、文字の下
-============ */
+.core.blue{
+  background: var(--c-blue);
+}
+
+.core.red{
+  background: var(--c-red);
+}
+
 .slotFrame{
   position: absolute;
-  left: 0;
-  top: 0;
+  inset: 0;
   width: 100%;
   height: 100%;
   display: block;
@@ -381,26 +301,24 @@ select{
   z-index: 20;
 }
 
-/* ============
-   Role text
-   最前面
-============ */
 .role{
   position: absolute;
   left: 50%;
   top: 50%;
   transform: translate(-50%, -50%);
-  width: 32px;
-  height: 56px;
+  width: 34px;
+  height: 44px;
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 28px;
+  text-align: center;
+  font-size: 15px;
   font-weight: 800;
-  line-height: 1;
+  line-height: 1.05;
   color: #111;
   text-shadow: 0 1px 0 #fff;
   user-select: none;
   pointer-events: none;
   z-index: 30;
+  white-space: pre-line;
 }
