@@ -1,38 +1,66 @@
 export const ROLES = {
   WOLF: "WOLF",
-  MAD: "MAD",
   SEER: "SEER",
-  GUARD: "GUARD",
+  MAD: "MAD",
   MEDIUM: "MEDIUM",
+  GUARD: "GUARD",
   VILLAGER: "VILLAGER",
 };
 
 export const MARK = {
-  GRAY: "GRAY",
+  NONE: "NONE",
   WHITE: "WHITE",
   BLACK: "BLACK",
 };
 
-export const PHASES = {
-  ROUND0_MAD: "ROUND0_MAD",
-  ROUND0_GUARD: "ROUND0_GUARD",
-
-  SEER: "SEER",
+export const DEATH = {
+  NONE: "NONE",
   LYNCH: "LYNCH",
-  MAD: "MAD",
-  GUARD: "GUARD",
   BITE: "BITE",
+};
 
+export const PUBLIC_KIND = {
+  A: "A",
+  B: "B",
+  MEDIUM: "MEDIUM",
+};
+
+export const PHASES = {
+  LYNCH: "LYNCH",
+  RESERVE_A: "RESERVE_A",
+  RESERVE_B: "RESERVE_B",
+  BITE: "BITE",
+  GUARD: "GUARD",
   END: "END",
 };
 
 export const CONFIG = {
   humanPlayerId: 0,
   autoPlayers: true,
-  autoSafetySteps: 100,
+  autoSafetySteps: 200,
 
-  // 追加
-  cpuOnlineLike: true,      // true: 演出あり / false: 即時
+  cpuOnlineLike: true,
   cpuThinkMsMin: 450,
   cpuThinkMsMax: 900,
+
+  playerCount: 3,
+  slotCount: 10,
+  publicSlotCount: 3,
+  hiddenSlotCount: 7,
+
+  publicLayout: [
+    { index: 0, kind: PUBLIC_KIND.A },
+    { index: 1, kind: PUBLIC_KIND.B },
+    { index: 2, kind: PUBLIC_KIND.MEDIUM },
+  ],
+
+  hiddenDeck: [
+    ROLES.WOLF,
+    ROLES.WOLF,
+    ROLES.GUARD,
+    ROLES.VILLAGER,
+    ROLES.VILLAGER,
+    ROLES.VILLAGER,
+    ROLES.VILLAGER,
+  ],
 };
