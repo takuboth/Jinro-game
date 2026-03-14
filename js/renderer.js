@@ -1,23 +1,12 @@
-// /js/renderer.js
-export function buildRenderer(root, onPick){
+import { CONFIG, MARK } from "./config.js";
+
+export function buildRenderer(root, onPick) {
   const playersEl = root.querySelector("#players");
   const txtStatus = root.querySelector("#txtStatus");
   const txtActing = root.querySelector("#txtActing");
 
   const playerCards = [];
   const slotEls = [];
-  const roleEls = [];
-  const orbEls = [];
-
-  function roleChar(role){
-    if (role === "WOLF") return "狼";
-    if (role === "MAD") return "狂";
-    if (role === "SEER") return "占";
-    if (role === "GUARD") return "狩";
-    if (role === "MEDIUM") return "霊";
-    if (role === "VILLAGER") return "村";
-    return "";
-  }
 
   playersEl.addEventListener("click", (ev) => {
     const slot = ev.target.closest?.(".slot.clickable");
@@ -27,7 +16,7 @@ export function buildRenderer(root, onPick){
     onPick(p, s);
   });
 
-  for (let p = 0; p < 4; p++){
+  for (let p = 0; p < CONFIG.playerCount; p++) {
     const card = document.createElement("section");
     card.className = "player";
     card.dataset.playerId = String(p);
@@ -35,41 +24,43 @@ export function buildRenderer(root, onPick){
     const header = document.createElement("div");
     header.className = "playerHeader";
 
+    const left = document.createElement("div");
+    left.className = "playerHeadLeft";
+
     const name = document.createElement("div");
     name.className = "pname";
-    name.textContent = `P${p+1}`;
+    name.textContent = `P${p + 1}`;
 
-    const badges = document.createElement("div");
-    badges.className = "badges";
+    const relation = document.createElement("div");
+    relation.className = "prelation";
+    relation.textContent = "";
 
-    const wolfBadge = document.createElement("span");
-    wolfBadge.className = "badge mediumNone";
-    wolfBadge.textContent = "人狼:-";
+    left.appendChild(name);
+    left.appendChild(relation);
 
-    const villageBadge = document.createElement("span");
-    villageBadge.className = "badge";
-    villageBadge.textContent = "村役:-";
+    const right = document.createElement("div");
+    right.className = "playerHeadRight";
 
-    // 追加: WIN / LOSE 表示
-    const resultEl = document.createElement("div");
-    resultEl.className = "playerResult";
-    resultEl.textContent = "";
+    const counts = document.createElement("div");
+    counts.className = "counts";
+    counts.textContent = "";
 
-    badges.appendChild(wolfBadge);
-    badges.appendChild(villageBadge);
+    const result = document.createElement("div");
+    result.className = "playerResult";
+    result.textContent = "";
 
-    header.appendChild(name);
-    header.appendChild(badges);
-    header.appendChild(resultEl);
+    right.appendChild(counts);
+    right.appendChild(result);
+
+    header.appendChild(left);
+    header.appendChild(right);
 
     const grid = document.createElement("div");
     grid.className = "grid";
 
     slotEls[p] = [];
-    roleEls[p] = [];
-    orbEls[p] = [];
 
-    for (let i = 0; i < 9; i++){
+    for (let i = 0; i < CONFIG.slotCount; i++) {
       const slot = document.createElement("div");
       slot.className = "slot";
       slot.dataset.playerId = String(p);
@@ -85,23 +76,27 @@ export function buildRenderer(root, onPick){
       slot.appendChild(br.wrap);
       slot.appendChild(bl.wrap);
 
-      // オーブの上、文字の下に入るスロット画像
       const frame = document.createElement("img");
       frame.className = "slotFrame";
       frame.src = "./img/slot.svg";
       frame.alt = "";
       slot.appendChild(frame);
 
-      const roleText = document.createElement("div");
-      roleText.className = "role";
-      roleText.textContent = "";
-      slot.appendChild(roleText);
+      const role = document.createElement("div");
+      role.className = "role";
+      role.textContent = "";
+      slot.appendChild(role);
 
       grid.appendChild(slot);
 
-      slotEls[p][i] = slot;
-      roleEls[p][i] = roleText;
-      orbEls[p][i] = { tl, tr, br, bl };
+      slotEls[p][i] = {
+        root: slot,
+        role,
+        tl,
+        tr,
+        br,
+        bl,
+      };
     }
 
     card.appendChild(header);
@@ -110,119 +105,96 @@ export function buildRenderer(root, onPick){
 
     playerCards.push({
       card,
-      nameEl: name,
-      wolfBadgeEl: wolfBadge,
-      villageBadgeEl: villageBadge,
-      resultEl,
+      name,
+      relation,
+      counts,
+      result,
     });
   }
 
-  function update(vm){
+  function update(vm) {
     if (txtStatus) txtStatus.textContent = vm.status ?? "---";
     if (txtActing) txtActing.textContent = vm.acting ?? "---";
 
-    const players = vm.players ?? [];
-
-    for (let p = 0; p < 4; p++){
-      const vPl = players[p];
-      if (!vPl) continue;
-
+    for (let p = 0; p < CONFIG.playerCount; p++) {
+      const vPl = vm.players[p];
       const pc = playerCards[p];
+
+      pc.name.textContent = vPl.name;
+      pc.relation.textContent = vPl.relation || "";
+      pc.counts.textContent = `狼:${vPl.wolfCount} / 非狼:${vPl.nonWolfCount}`;
+      pc.result.textContent = vPl.resultText || "";
 
       const focus = Array.isArray(vm.focusPlayers) ? vm.focusPlayers : [];
       const isFocus = (!vm.humanCanAct) || focus.includes(vPl.id);
       pc.card.classList.toggle("dim", vm.humanCanAct && !isFocus && !vm.game.over);
 
-      pc.nameEl.textContent = vPl.name ?? `P${p+1}`;
-
-      pc.wolfBadgeEl.className = `badge ${vPl.mediumClass || "mediumNone"}` + (vPl.alive ? "" : " retired");
-      pc.wolfBadgeEl.textContent = `人狼:${vPl.mediumVal == null ? "-" : vPl.mediumVal}`;
-
-      pc.villageBadgeEl.className = "badge" + (vPl.alive ? "" : " retired");
-      pc.villageBadgeEl.textContent = `村役:${vPl.villageTotal ?? "-"}`;
-
-      // WIN / LOSE 表示
-      if (!vPl.alive && vPl.escaped) {
-        pc.resultEl.textContent = "WIN";
-      } else if (!vPl.alive) {
-        pc.resultEl.textContent = "LOSE";
-      } else {
-        pc.resultEl.textContent = "";
-      }
-
-      const slots = vPl.slots ?? [];
-      for (let i = 0; i < 9; i++){
-        const vS = slots[i];
-        if (!vS) continue;
-
+      for (let i = 0; i < CONFIG.slotCount; i++) {
+        const vS = vPl.slots[i];
         const el = slotEls[p][i];
-        const roleEl = roleEls[p][i];
-        const orbs = orbEls[p][i];
 
-        const dead = !!vS.dead;
-        const disabled = !vPl.alive;
-        const clickable = !!(vm.clickable?.[p]?.[i]);
+        el.root.classList.toggle("dead", !!vS.dead);
+        el.root.classList.toggle("clickable", !!vS.clickable && !vS.dead);
+        el.role.textContent = vS.roleText || "";
 
-        el.classList.toggle("dead", dead);
-        el.classList.toggle("disabled", disabled);
-        el.classList.toggle("clickable", clickable && !dead && !disabled);
-        el.classList.remove("selected");
-
-        const revealAll = !!(vm.game && vm.game.over === true);
-        const revealPlayer = !vPl.alive;
-        const showRole = revealAll || revealPlayer || (p === vm.viewAsId);
-        roleEl.textContent = showRole ? roleChar(vS.role) : "";
-
-        const guardActive =
-          (p === vm.viewAsId) &&
-          (typeof vPl.guardIndex === "number") &&
-          (vPl.guardIndex === i);
-
-        setCore(orbs.tl, guardActive ? "guard" : "gray", guardActive);
-
-        const invertActive =
-          (p === vm.viewAsId) &&
-          (!vPl.madUsed) &&
-          (typeof vPl.invertIndex === "number") &&
-          (vPl.invertIndex === i);
-
-        setCore(orbs.tr, invertActive ? "invert" : "gray", invertActive);
-
-        if (vS.mark === "WHITE") setCore(orbs.br, "white", true);
-        else if (vS.mark === "BLACK") setCore(orbs.br, "black", true);
-        else setCore(orbs.br, "gray", false);
-
-        setPublic(orbs.br, !!vS.isPublicSeer);
-
-        setCore(orbs.bl, "gray", false);
+        setOrb(el.bl, vS.seerA);
+        setOrb(el.br, vS.seerB);
+        setOrb(el.tr, vS.medium);
+        setDeathOrb(el.tl, vS.death);
       }
     }
   }
 
   return { update };
+}
 
-  function makeOrb(pos){
-    const wrap = document.createElement("div");
-    wrap.className = `orb ${pos}`;
+function makeOrb(pos) {
+  const wrap = document.createElement("div");
+  wrap.className = `orb ${pos}`;
 
-    const ring = document.createElement("div");
-    ring.className = "ring";
+  const ring = document.createElement("div");
+  ring.className = "ring";
 
-    const core = document.createElement("div");
-    core.className = "core gray";
+  const core = document.createElement("div");
+  core.className = "core gray";
 
-    wrap.appendChild(ring);
-    wrap.appendChild(core);
+  wrap.appendChild(ring);
+  wrap.appendChild(core);
 
-    return { wrap, ring, core };
+  return { wrap, ring, core };
+}
+
+function setOrb(orbObj, mark) {
+  orbObj.wrap.classList.remove("active");
+  orbObj.wrap.classList.remove("deathLynch");
+  orbObj.wrap.classList.remove("deathBite");
+
+  let cls = "gray";
+  if (mark === MARK.WHITE) {
+    cls = "white";
+    orbObj.wrap.classList.add("active");
+  } else if (mark === MARK.BLACK) {
+    cls = "black";
+    orbObj.wrap.classList.add("active");
   }
 
-  function setCore(orbObj, cls, active){
-    orbObj.wrap.classList.toggle("active", !!active);
-    orbObj.core.className = "core " + cls;
+  orbObj.core.className = "core " + cls;
+}
+
+function setDeathOrb(orbObj, death) {
+  orbObj.wrap.classList.remove("active");
+  orbObj.wrap.classList.remove("deathLynch");
+  orbObj.wrap.classList.remove("deathBite");
+
+  let cls = "gray";
+
+  if (death === "LYNCH") {
+    cls = "blue";
+    orbObj.wrap.classList.add("active", "deathLynch");
+  } else if (death === "BITE") {
+    cls = "red";
+    orbObj.wrap.classList.add("active", "deathBite");
   }
 
-  function setPublic(orbObj, isPublic){
-    orbObj.wrap.classList.toggle("public", !!isPublic);
-  }
+  orbObj.core.className = "core " + cls;
 }
