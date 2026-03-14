@@ -40,6 +40,15 @@ function deathMark(slot) {
   return "NONE";
 }
 
+function uniqueOrder(arr) {
+  const out = [];
+  for (const v of arr) {
+    if (v == null) continue;
+    if (!out.includes(v)) out.push(v);
+  }
+  return out;
+}
+
 export function deriveViewModel(game, viewAsId) {
   const humanId = CONFIG.humanPlayerId;
   const actorId = game.turn;
@@ -62,7 +71,11 @@ export function deriveViewModel(game, viewAsId) {
   const rightId = actor ? rightPlayerIndex(game, actorId) : null;
 
   if (humanCanAct) {
-    if (game.phase === PHASES.LYNCH || game.phase === PHASES.RESERVE_A || game.phase === PHASES.RESERVE_B) {
+    if (
+      game.phase === PHASES.LYNCH ||
+      game.phase === PHASES.RESERVE_A ||
+      game.phase === PHASES.RESERVE_B
+    ) {
       if (leftId != null) focusPlayers.push(leftId);
     } else if (game.phase === PHASES.BITE) {
       focusPlayers.push(actorId);
@@ -81,17 +94,27 @@ export function deriveViewModel(game, viewAsId) {
 
     if (game.phase === PHASES.RESERVE_A && leftId != null) {
       const target = game.players[leftId];
-      for (let i = 0; i < CONFIG.slotCount; i++) {
-        const s = target.slots[i];
-        clickable[leftId][i] = !s.dead && !s.isPublic && !actor.seenA[i];
+      const aAlive = target.slots.some(
+        s => s.isPublic && s.publicKind === PUBLIC_KIND.A && !s.dead
+      );
+      if (aAlive) {
+        for (let i = 0; i < CONFIG.slotCount; i++) {
+          const s = target.slots[i];
+          clickable[leftId][i] = !s.dead && !s.isPublic && !actor.seenA[i];
+        }
       }
     }
 
     if (game.phase === PHASES.RESERVE_B && leftId != null) {
       const target = game.players[leftId];
-      for (let i = 0; i < CONFIG.slotCount; i++) {
-        const s = target.slots[i];
-        clickable[leftId][i] = !s.dead && !s.isPublic && !actor.seenB[i];
+      const bAlive = target.slots.some(
+        s => s.isPublic && s.publicKind === PUBLIC_KIND.B && !s.dead
+      );
+      if (bAlive) {
+        for (let i = 0; i < CONFIG.slotCount; i++) {
+          const s = target.slots[i];
+          clickable[leftId][i] = !s.dead && !s.isPublic && !actor.seenB[i];
+        }
       }
     }
 
@@ -154,6 +177,16 @@ export function deriveViewModel(game, viewAsId) {
     };
   });
 
+  const viewLeft = leftPlayerIndex(game, viewAsId);
+  const viewRight = rightPlayerIndex(game, viewAsId);
+
+  const displayOrder = uniqueOrder([
+    viewLeft,
+    viewAsId,
+    viewRight,
+    ...game.players.map(p => p.id),
+  ]);
+
   return {
     game,
     viewAsId,
@@ -162,5 +195,6 @@ export function deriveViewModel(game, viewAsId) {
     status,
     acting,
     players,
+    displayOrder,
   };
 }
