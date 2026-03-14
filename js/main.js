@@ -6,16 +6,16 @@ function showFatal(err, where = "") {
   const a = root?.querySelector?.("#txtActing");
 
   if (s) s.textContent = "JSエラーで停止";
-  if (a) a.textContent = (where ? `[${where}] ` : "") + msg.slice(0, 200);
+  if (a) a.textContent = (where ? `[${where}] ` : "") + msg.slice(0, 240);
 
   console.error("FATAL", where, err);
 }
 
-function sleep(ms){
+function sleep(ms) {
   return new Promise(resolve => setTimeout(resolve, ms));
 }
 
-function randInt(min, max){
+function randInt(min, max) {
   return Math.floor(Math.random() * (max - min + 1)) + min;
 }
 
@@ -34,38 +34,21 @@ async function boot() {
       doAbsentOk,
       isHumanTurn,
       cpuDoOneImmediate,
-      logPush
+      phaseLabel,
     } = gameMod;
 
     const { deriveViewModel } = vmMod;
     const { buildRenderer } = renMod;
-    const { CONFIG, PHASES } = cfgMod;
+    const { CONFIG } = cfgMod;
 
     let game = null;
     let viewAsId = 0;
     let busy = false;
 
-    // 切り替え用。config.js に置いてもいいが、まずは main.js 内でも可
-    if (typeof CONFIG.cpuOnlineLike === "undefined") CONFIG.cpuOnlineLike = true;
-    if (typeof CONFIG.cpuThinkMsMin === "undefined") CONFIG.cpuThinkMsMin = 400;
-    if (typeof CONFIG.cpuThinkMsMax === "undefined") CONFIG.cpuThinkMsMax = 800;
-
     const btnNew = root.querySelector("#btnNew");
     const selViewAs = root.querySelector("#selViewAs");
     const btnAbsentOk = root.querySelector("#btnAbsentOk");
-    const btnCpuMode = root.querySelector("#btnCpuMode"); // 無ければ無視
-
-    function phaseText(phase){
-      if (phase === PHASES.ROUND0_MAD) return "初期狂人設定";
-      if (phase === PHASES.ROUND0_GUARD) return "初期狩人守り";
-      if (phase === PHASES.SEER) return "占い";
-      if (phase === PHASES.LYNCH) return "吊り";
-      if (phase === PHASES.MAD) return "狂人設定";
-      if (phase === PHASES.GUARD) return "狩人守り";
-      if (phase === PHASES.BITE) return "噛み";
-      if (phase === PHASES.END) return "終了";
-      return "";
-    }
+    const btnCpuMode = root.querySelector("#btnCpuMode");
 
     const renderer = buildRenderer(root, async (playerId, slotIndex) => {
       if (busy || !game) return;
@@ -91,10 +74,10 @@ async function boot() {
       btnAbsentOk.disabled = !game || !canAbsentOk(game);
     }
 
-    function renderThinkingStatus(){
+    function renderThinkingStatus() {
       if (!game) return;
       const actorId = game.turn;
-      const txt = `P${actorId + 1} が${phaseText(game.phase)}を考え中...`;
+      const txt = `P${actorId + 1} が${phaseLabel(game.phase)}を考え中...`;
       render(txt);
     }
 
@@ -102,21 +85,16 @@ async function boot() {
       if (!game) return;
       if (!CONFIG.autoPlayers) return;
 
-      // 即時モード
       if (!CONFIG.cpuOnlineLike) {
         runAutoUntilHumanTurn(game);
         render();
         return;
       }
 
-      // 演出ありモード
       let steps = 0;
-      while (!game.over && game.phase !== PHASES.END && !isHumanTurn(game)) {
+      while (!game.over && !isHumanTurn(game)) {
         steps += 1;
-        if (steps > CONFIG.autoSafetySteps) {
-          logPush(game, `自動停止: safetySteps超過（無限ループ防止）`);
-          break;
-        }
+        if (steps > CONFIG.autoSafetySteps) break;
 
         renderThinkingStatus();
         await sleep(randInt(CONFIG.cpuThinkMsMin, CONFIG.cpuThinkMsMax));
@@ -137,7 +115,7 @@ async function boot() {
       if (busy) return;
       busy = true;
       try {
-        game = makeNewGame(null);
+        game = makeNewGame();
         viewAsId = 0;
         selViewAs.value = "0";
         render();
