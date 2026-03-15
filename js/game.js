@@ -568,7 +568,7 @@ export function cpuDoOneImmediate(game) {
     return;
   }
 
-  if (game.phase === PHASES.RESERVE_A) {
+    if (game.phase === PHASES.RESERVE_A) {
     if (leftId == null) {
       advancePhase(game);
       return;
@@ -579,7 +579,10 @@ export function cpuDoOneImmediate(game) {
       advancePhase(game);
       return;
     }
-    const pick = pickCpuReserveTarget(left, actor.seenA);
+
+    const alreadyB = actor.pendingB?.slotIndex ?? null;
+    const pick = pickCpuReserveTarget(left, actor.seenA, alreadyB);
+
     if (pick == null) {
       logPush(game, `CPU P${actorId + 1} 占A予約 → 対象なし`);
       advancePhase(game);
@@ -600,7 +603,10 @@ export function cpuDoOneImmediate(game) {
       advancePhase(game);
       return;
     }
-    const pick = pickCpuReserveTarget(left, actor.seenB);
+
+    const alreadyA = actor.pendingA?.slotIndex ?? null;
+    const pick = pickCpuReserveTarget(left, actor.seenB, alreadyA);
+
     if (pick == null) {
       logPush(game, `CPU P${actorId + 1} 占B予約 → 対象なし`);
       advancePhase(game);
