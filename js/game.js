@@ -123,32 +123,60 @@ export function makeNewGame() {
 
 function applyInitialReservations(game) {
   for (let actorId = 0; actorId < game.players.length; actorId++) {
-    const leftId = leftPlayerIndex(game, actorId);
-    if (leftId == null) continue;
-
-    const leftPlayer = game.players[leftId];
-    const cands = leftPlayer.slots
-      .map((slot, index) => ({ slot, index }))
-      .filter(x => !x.slot.dead && x.slot.role !== ROLES.WOLF);
-
-    if (!cands.length) continue;
-
-    const pickA = pickRandom(cands);
-    const pickB = pickRandom(cands) ?? pickA;
-
-    if (pickA) {
-      game.players[actorId].pendingA = { targetId: leftId, slotIndex: pickA.index };
-      game.players[actorId].seenA[pickA.index] = true;
-    }
-    if (pickB) {
-      game.players[actorId].pendingB = { targetId: leftId, slotIndex: pickB.index };
-      game.players[actorId].seenB[pickB.index] = true;
-    }
-
+    setInitialReservationsForActor(game, actorId);
     revealPendingReportsForActor(game, actorId);
 
     game.players[actorId].pendingA = null;
     game.players[actorId].pendingB = null;
+  }
+}
+
+function setInitialReservationsForActor(game, actorId) {
+  const actor = game.players[actorId];
+  const leftId = leftPlayerIndex(game, actorId);
+  if (leftId == null) return;
+
+  const leftPlayer = game.players[leftId];
+
+  const hidden = leftPlayer.slots
+    .map((slot, index) => ({ slot, index }))
+    .filter(x => !x.slot.dead && !x.slot.isPublic);
+
+  // 偽占い候補: 村人・狩人・人狼（= 非公開7枚すべて）
+  const fakeCandidates = hidden;
+  const fakePick = pickRandom(fakeCandidates);
+  if (!fakePick) return;
+
+  // 真占い候補: 偽占い先以外、かつ人狼以外
+  const trueCandidates = hidden.filter(x =>
+    x.index !== fakePick.index &&
+    x.slot.role !== ROLES.WOLF
+  );
+  if (!trueCandidates.length) return;
+
+  const truePick = pickRandom(trueCandidates);
+  if (!truePick) return;
+
+  // 左プレイヤー基準で、どちらが真占いラインかを決める
+  const trueKind = getTrueLineKind(leftPlayer);
+  const fakeKind = getFakeLineKind(leftPlayer);
+
+  // 真占い予約を A/B ラインに格納
+  if (trueKind === PUBLIC_KIND.A) {
+    actor.pendingA = { targetId: leftId, slotIndex: truePick.index };
+    actor.seenA[truePick.index] = true;
+  } else {
+    actor.pendingB = { targetId: leftId, slotIndex: truePick.index };
+    actor.seenB[truePick.index] = true;
+  }
+
+  // 偽占い予約を A/B ラインに格納
+  if (fakeKind === PUBLIC_KIND.A) {
+    actor.pendingA = { targetId: leftId, slotIndex: fakePick.index };
+    actor.seenA[fakePick.index] = true;
+  } else {
+    actor.pendingB = { targetId: leftId, slotIndex: fakePick.index };
+    actor.seenB[fakePick.index] = true;
   }
 }
 
