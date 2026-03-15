@@ -153,88 +153,162 @@ export function markScore(slot) {
   return 2;
 }
 
+export function judgeLineTrust(player) {
+  let trustA = 0;
+  let trustB = 0;
+
+  for (const slot of player.slots) {
+    if (slot.medium === MARK.BLACK && slot.seerA === MARK.BLACK) trustA += 3;
+    if (slot.medium === MARK.BLACK && slot.seerB === MARK.BLACK) trustB += 3;
+
+    if (slot.medium === MARK.WHITE && slot.seerA === MARK.BLACK) trustA -= 2;
+    if (slot.medium === MARK.WHITE && slot.seerB === MARK.BLACK) trustB -= 2;
+  }
+
+  let trueLike = null;
+  if (trustA > trustB) trueLike = "A";
+  else if (trustB > trustA) trueLike = "B";
+
+  return { trustA, trustB, trueLike };
+}
+
+export function classifySlotForLynch(slot, trust) {
+  const a = slot.seerA;
+  const b = slot.seerB;
+
+  const trueLike = trust.trueLike;
+
+  if (trueLike === "A" && a === MARK.BLACK) return "TRUE_BLACK";
+  if (trueLike === "B" && b === MARK.BLACK) return "TRUE_BLACK";
+
+  const blackCount = (a === MARK.BLACK ? 1 : 0) + (b === MARK.BLACK ? 1 : 0);
+  const whiteCount = (a === MARK.WHITE ? 1 : 0) + (b === MARK.WHITE ? 1 : 0);
+
+  if (blackCount === 1) return "HALF_BLACK";
+  if (blackCount === 0 && whiteCount === 0) return "GRAY";
+  if (blackCount === 0 && whiteCount === 1) return "HALF_WHITE";
+  if (blackCount === 0 && whiteCount === 2) return "WHITE";
+  return "GRAY";
+}
+
+export function classifySlotForProtect(slot) {
+  const a = slot.seerA;
+  const b = slot.seerB;
+  const m = slot.medium;
+
+  const blackCount = (a === MARK.BLACK ? 1 : 0) + (b === MARK.BLACK ? 1 : 0) + (m === MARK.BLACK ? 1 : 0);
+  const whiteCount = (a === MARK.WHITE ? 1 : 0) + (b === MARK.WHITE ? 1 : 0) + (m === MARK.WHITE ? 1 : 0);
+
+  if (slot.isPublic && (slot.publicKind === "A" || slot.publicKind === "B")) return "SEER";
+  if (slot.isPublic && slot.publicKind === "MEDIUM") return "MEDIUM";
+
+  if (whiteCount >= 2) return "CONFIRMED_WHITE";
+  if (whiteCount === 1 && blackCount === 0) return "HALF_WHITE";
+  if (whiteCount === 0 && blackCount === 0) return "GRAY";
+  if (blackCount === 1) return "HALF_BLACK";
+  if (blackCount >= 2) return "BLACK";
+
+  return "GRAY";
+}
+
+export function scoreLynchSlot(slot, trust) {
+  const cls = classifySlotForLynch(slot, trust);
+
+  if (cls === "TRUE_BLACK") return 100;
+  if (cls === "HALF_BLACK") return 70;
+  if (cls === "GRAY") return 40;
+  if (cls === "HALF_WHITE") return 40; // 片白はグレー扱い
+  if (cls === "WHITE") return 10;
+  return 0;
+}
+
+export function scoreProtectSlot(slot) {
+  const cls = classifySlotForProtect(slot);
+
+  if (cls === "SEER") return 100;
+  if (cls === "MEDIUM") return 85;
+  if (cls === "CONFIRMED_WHITE") return 70;
+  if (cls === "HALF_WHITE") return 55;
+  if (cls === "GRAY") return 40;
+  if (cls === "HALF_BLACK") return 20;
+  if (cls === "BLACK") return 5;
+  return 0;
+}
+
+export function weightedPickIndex(cands, scoreFn) {
+  if (!cands || !cands.length) return null;
+
+  const scored = cands.map(x => ({
+    ...x,
+    score: Math.max(0, scoreFn(x.slot, x) || 0),
+  }));
+
+  const total = scored.reduce((sum, x) => sum + x.score, 0);
+
+  if (total <= 0) {
+    return pickRandom(scored)?.index ?? null;
+  }
+
+  let r = Math.random() * total;
+  for (const x of scored) {
+    r -= x.score;
+    if (r <= 0) return x.index;
+  }
+
+  return scored[scored.length - 1].index;
+}
+
 export function pickCpuLynchTarget(player) {
   const alive = getAliveSlots(player);
   if (!alive.length) return null;
 
-  let best = null;
-  let bestScore = -999;
-  for (const x of alive) {
-    let score = 0;
-    const s = x.slot;
+  const trust = judgeLineTrust(player);
 
-    if (s.seerA === MARK.BLACK) score += 50;
-    if (s.seerB === MARK.BLACK) score += 50;
-    if (s.medium === MARK.BLACK) score += 30;
+  return weightedPickIndex(alive, (slot) => {
+    let score = scoreLynchSlot(slot, trust);
 
-    if (s.seerA === MARK.WHITE) score -= 15;
-    if (s.seerB === MARK.WHITE) score -= 15;
-    if (s.medium === MARK.WHITE) score -= 10;
+    if (slot.medium === MARK.BLACK) score += 8;
+    if (slot.isPublic) score -= 6;
 
-    if (s.isPublic) score -= 4;
-
-    score += Math.random() * 0.01;
-
-    if (score > bestScore) {
-      bestScore = score;
-      best = x.index;
-    }
-  }
-  return best;
+    return score;
+  });
 }
 
-export function pickCpuReserveTarget(player, seenMap) {
-  const cands = hiddenReserveCandidates(player, seenMap);
-  if (!cands.length) return null;
+export function pickCpuReserveTarget(player, seenMap, otherReservedIndex = null) {
+  const unseen = hiddenReserveCandidates(player, seenMap);
 
-  let best = null;
-  let bestScore = -999;
-  for (const x of cands) {
+  const primary = unseen.filter(x => x.index !== otherReservedIndex);
+  const fallback = unseen;
+
+  const targetPool = primary.length ? primary : fallback;
+  if (!targetPool.length) return null;
+
+  return weightedPickIndex(targetPool, (slot, x) => {
     let score = 0;
-    const s = x.slot;
 
-    if (s.seerA === MARK.BLACK || s.seerB === MARK.BLACK || s.medium === MARK.BLACK) score += 40;
-    else if (s.seerA === MARK.WHITE || s.seerB === MARK.WHITE || s.medium === MARK.WHITE) score -= 10;
-    else score += 5;
+    const a = slot.seerA;
+    const b = slot.seerB;
+    const m = slot.medium;
 
-    score += Math.random() * 0.01;
+    const blackCount = (a === MARK.BLACK ? 1 : 0) + (b === MARK.BLACK ? 1 : 0) + (m === MARK.BLACK ? 1 : 0);
+    const whiteCount = (a === MARK.WHITE ? 1 : 0) + (b === MARK.WHITE ? 1 : 0) + (m === MARK.WHITE ? 1 : 0);
 
-    if (score > bestScore) {
-      bestScore = score;
-      best = x.index;
-    }
-  }
-  return best;
+    if (blackCount >= 1) score += 80;
+    else if (whiteCount === 0) score += 55;
+    else if (whiteCount === 1) score += 40;
+    else score += 20;
+
+    if (otherReservedIndex != null && x.index === otherReservedIndex) score -= 30;
+
+    return score;
+  });
 }
 
 export function pickCpuBiteTarget(player) {
   const cands = getAliveBiteTargets(player);
   if (!cands.length) return null;
 
-  let best = null;
-  let bestScore = -999;
-  for (const x of cands) {
-    let score = 0;
-    const s = x.slot;
-
-    if (s.seerA === MARK.WHITE) score += 35;
-    if (s.seerB === MARK.WHITE) score += 35;
-    if (s.medium === MARK.WHITE) score += 10;
-
-    if (s.seerA === MARK.BLACK) score -= 20;
-    if (s.seerB === MARK.BLACK) score -= 20;
-    if (s.medium === MARK.BLACK) score -= 8;
-
-    if (s.isPublic) score += 5;
-
-    score += Math.random() * 0.01;
-
-    if (score > bestScore) {
-      bestScore = score;
-      best = x.index;
-    }
-  }
-  return best;
+  return weightedPickIndex(cands, (slot) => scoreProtectSlot(slot));
 }
 
 export function pickCpuGuardTarget(rightPlayer, forbiddenSlotIndex) {
@@ -244,28 +318,5 @@ export function pickCpuGuardTarget(rightPlayer, forbiddenSlotIndex) {
 
   if (!cands.length) return null;
 
-  let best = null;
-  let bestScore = -999;
-  for (const x of cands) {
-    let score = 0;
-    const s = x.slot;
-
-    if (s.seerA === MARK.WHITE) score += 20;
-    if (s.seerB === MARK.WHITE) score += 20;
-    if (s.medium === MARK.WHITE) score += 5;
-
-    if (s.seerA === MARK.BLACK) score -= 15;
-    if (s.seerB === MARK.BLACK) score -= 15;
-    if (s.medium === MARK.BLACK) score -= 5;
-
-    if (s.isPublic) score += 3;
-
-    score += Math.random() * 0.01;
-
-    if (score > bestScore) {
-      bestScore = score;
-      best = x.index;
-    }
-  }
-  return best;
+  return weightedPickIndex(cands, (slot) => scoreProtectSlot(slot));
 }
