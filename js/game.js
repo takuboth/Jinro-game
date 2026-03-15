@@ -302,15 +302,21 @@ function revealPendingReportsForActor(game, actorId) {
   const truePending = pendingByKind[trueKind];
   const fakePending = pendingByKind[fakeKind];
 
+  // まず真占い色を「表示するかどうかに関係なく」内部計算する
   let trueColor = null;
-
-  // 真占い結果：左の村の真占いラインが生きている場合のみ表示
-  if (truePending && isLineAlive(leftPlayer, trueKind)) {
+  if (truePending) {
     const tgtPlayer = game.players[truePending.targetId];
     const tgtSlot = tgtPlayer?.slots?.[truePending.slotIndex];
     if (tgtSlot) {
       trueColor = colorFromRole(tgtSlot.role);
+    }
+  }
 
+  // 真占いラインが生きている時だけ表示
+  if (truePending && trueColor !== null && isLineAlive(leftPlayer, trueKind)) {
+    const tgtPlayer = game.players[truePending.targetId];
+    const tgtSlot = tgtPlayer?.slots?.[truePending.slotIndex];
+    if (tgtSlot) {
       if (trueKind === PUBLIC_KIND.A) tgtSlot.seerA = trueColor;
       else tgtSlot.seerB = trueColor;
 
@@ -321,8 +327,8 @@ function revealPendingReportsForActor(game, actorId) {
     }
   }
 
-  // 偽占い結果：左の村の偽占いラインが生きていて、かつ真結果が計算できた場合のみ表示
-  if (fakePending && isLineAlive(leftPlayer, fakeKind) && trueColor !== null) {
+  // 偽占いは、真色が内部計算できていれば、偽ライン生存時に表示
+  if (fakePending && trueColor !== null && isLineAlive(leftPlayer, fakeKind)) {
     const tgtPlayer = game.players[fakePending.targetId];
     const tgtSlot = tgtPlayer?.slots?.[fakePending.slotIndex];
     if (tgtSlot) {
