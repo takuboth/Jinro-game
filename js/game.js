@@ -113,6 +113,7 @@ export function makeNewGame() {
     over: false,
     winners: [],
     log: [],
+    lastLynchedSlot: null,
   };
 
   applyInitialReservations(game);
@@ -414,8 +415,9 @@ export function applyLynch(game, actorId, targetId, slotIndex) {
 
   killSlot(game, targetId, slotIndex, DEATH.LYNCH);
 
-  // この吊り結果は、次に actor の手番が来たとき、
-  // 「その時の左の村に霊媒が生きていれば」表示される
+  // 追加
+  game.lastLynchedSlot = slot;
+
   game.players[actorId].pendingMedium = {
     targetId,
     slotIndex,
@@ -636,8 +638,8 @@ export function cpuDoOneImmediate(game) {
     return;
   }
 
-  if (game.phase === PHASES.BITE) {
-    const pick = pickCpuBiteTarget(actor);
+    if (game.phase === PHASES.BITE) {
+    const pick = pickCpuBiteTarget(actor, game);
     if (pick == null) {
       logPush(game, `CPU P${actorId + 1} 噛み → 対象なし`);
       advancePhase(game);
