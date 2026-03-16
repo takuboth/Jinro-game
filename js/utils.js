@@ -85,6 +85,12 @@ export function getAliveBiteTargets(player) {
     .filter(x => !x.slot.dead && x.slot.role !== ROLES.WOLF);
 }
 
+export function getAliveGuardTargets(player){
+  return player.slots
+    .map((slot, index) => ({ slot, index }))
+    .filter(x => !x.slot.dead);
+}
+
 export function hasAliveRole(player, role) {
   return player.slots.some(s => !s.dead && s.role === role);
 }
