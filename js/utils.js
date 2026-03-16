@@ -157,19 +157,103 @@ export function judgeLineTrust(player) {
   let trustA = 0;
   let trustB = 0;
 
-  for (const slot of player.slots) {
-    if (slot.medium === MARK.BLACK && slot.seerA === MARK.BLACK) trustA += 3;
-    if (slot.medium === MARK.BLACK && slot.seerB === MARK.BLACK) trustB += 3;
+  let fixedTrue = null;   // "A" | "B" | null
+  let fixedFalse = null;  // "A" | "B" | null
 
-    if (slot.medium === MARK.WHITE && slot.seerA === MARK.BLACK) trustA -= 2;
-    if (slot.medium === MARK.WHITE && slot.seerB === MARK.BLACK) trustB -= 2;
+  for (const slot of player.slots) {
+    const a = slot.seerA;
+    const b = slot.seerB;
+    const m = slot.medium;
+
+    const aBlack = a === MARK.BLACK;
+    const aWhite = a === MARK.WHITE;
+    const bBlack = b === MARK.BLACK;
+    const bWhite = b === MARK.WHITE;
+    const mBlack = m === MARK.BLACK;
+    const mWhite = m === MARK.WHITE;
+
+    // 1) 同一スロットで白黒割れ + 霊結果あり
+    //    → 霊結果と一致した方を真確定、逆を偽確定
+    if (m !== MARK.NONE) {
+      const split =
+        (aBlack && bWhite) ||
+        (aWhite && bBlack);
+
+      if (split) {
+        if (mBlack) {
+          if (aBlack && bWhite) {
+            fixedTrue = "A";
+            fixedFalse = "B";
+          } else if (bBlack && aWhite) {
+            fixedTrue = "B";
+            fixedFalse = "A";
+          }
+        } else if (mWhite) {
+          if (aWhite && bBlack) {
+            fixedTrue = "A";
+            fixedFalse = "B";
+          } else if (bWhite && aBlack) {
+            fixedTrue = "B";
+            fixedFalse = "A";
+          }
+        }
+      }
+    }
+
+    // 2) 片黒 + 霊白
+    //    → その黒出し占いを偽確定
+    if (mWhite) {
+      const oneBlack =
+        (aBlack ? 1 : 0) + (bBlack ? 1 : 0) === 1;
+
+      if (oneBlack) {
+        if (aBlack) {
+          fixedTrue = "B";
+          fixedFalse = "A";
+        } else if (bBlack) {
+          fixedTrue = "A";
+          fixedFalse = "B";
+        }
+      }
+    }
+
+    // 3) 片黒 + 霊黒
+    //    → その占いに信頼度 +80
+    if (mBlack) {
+      const oneBlack =
+        (aBlack ? 1 : 0) + (bBlack ? 1 : 0) === 1;
+
+      if (oneBlack) {
+        if (aBlack) trustA += 80;
+        if (bBlack) trustB += 80;
+      }
+    }
+
+    // 4) 片白 + 霊白
+    // 5) 両白 + 霊白
+    //    → 変化なし
+  }
+
+  // 確定情報が出た場合は最優先
+  if (fixedTrue === "A") {
+    trustA = 1000;
+    trustB = -1000;
+  } else if (fixedTrue === "B") {
+    trustA = -1000;
+    trustB = 1000;
   }
 
   let trueLike = null;
   if (trustA > trustB) trueLike = "A";
   else if (trustB > trustA) trueLike = "B";
 
-  return { trustA, trustB, trueLike };
+  return {
+    trustA,
+    trustB,
+    trueLike,
+    fixedTrue,
+    fixedFalse,
+  };
 }
 
 export function classifySlotForLynch(slot, trust) {
