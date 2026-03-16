@@ -329,24 +329,38 @@ function revealPendingReportsForActor(game, actorId) {
 
   // 偽占いは、真色が内部計算できていれば、偽ライン生存時に表示
   if (fakePending && trueColor !== null && isLineAlive(leftPlayer, fakeKind)) {
-    const tgtPlayer = game.players[fakePending.targetId];
-    const tgtSlot = tgtPlayer?.slots?.[fakePending.slotIndex];
-    if (tgtSlot) {
+  const tgtPlayer = game.players[fakePending.targetId];
+  const tgtSlot = tgtPlayer?.slots?.[fakePending.slotIndex];
+
+  if (tgtSlot) {
+
+    const opponentBlack =
+      (fakeKind === PUBLIC_KIND.A && tgtSlot.seerB === MARK.BLACK) ||
+      (fakeKind === PUBLIC_KIND.B && tgtSlot.seerA === MARK.BLACK);
+
+    let fakeColor;
+
+    if (opponentBlack) {
+      fakeColor = MARK.WHITE;
+    } else {
       const same = sameTarget(fakePending, truePending);
-      const fakeColor =
-        same
-          ? (trueColor === MARK.BLACK ? MARK.WHITE : MARK.BLACK)
-          : trueColor;
 
-      if (fakeKind === PUBLIC_KIND.A) tgtSlot.seerA = fakeColor;
-      else tgtSlot.seerB = fakeColor;
-
-      logPush(
-        game,
-        `P${actorId + 1} ${fakeKind === PUBLIC_KIND.A ? "占A" : "占B"}結果 → P${fakePending.targetId + 1} S${fakePending.slotIndex + 1} = ${fakeColor === MARK.BLACK ? "黒" : "白"}`
-      );
+      fakeColor = same
+        ? (trueColor === MARK.BLACK ? MARK.WHITE : MARK.BLACK)
+        : trueColor;
     }
+
+    if (fakeKind === PUBLIC_KIND.A)
+      tgtSlot.seerA = fakeColor;
+    else
+      tgtSlot.seerB = fakeColor;
+
+    logPush(
+      game,
+      `P${actorId + 1} ${fakeKind === PUBLIC_KIND.A ? "占A" : "占B"}結果 → P${fakePending.targetId + 1} S${fakePending.slotIndex + 1} = ${fakeColor === MARK.BLACK ? "黒" : "白"}`
+    );
   }
+}
 
   // 霊媒結果：左の村の霊媒が生きている場合のみ表示
   if (actor.pendingMedium && isLineAlive(leftPlayer, PUBLIC_KIND.MEDIUM)) {
