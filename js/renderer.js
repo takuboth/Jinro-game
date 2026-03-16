@@ -130,7 +130,10 @@ export function buildRenderer(root, onPick) {
 
       pc.name.textContent = vPl.name;
       pc.relation.textContent = vPl.relation || "";
-      pc.counts.textContent = `狼:${vPl.wolfCount} / 非狼:${vPl.nonWolfCount}`;
+      pc.counts.textContent =
+        (vPl.wolfCount == null || vPl.nonWolfCount == null)
+        ? ""
+        : `狼:${vPl.wolfCount} / 非狼:${vPl.nonWolfCount}`;
       pc.result.textContent = vPl.resultText || "";
 
       const focus = Array.isArray(vm.focusPlayers) ? vm.focusPlayers : [];
