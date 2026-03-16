@@ -394,12 +394,13 @@ export function pickCpuLynchTarget(player) {
   if (!alive.length) return null;
 
   const trust = judgeLineTrust(player);
+  const mediumAlive = isLineAlive(player, PUBLIC_KIND.MEDIUM);
 
   return weightedPickIndex(alive, (slot) => {
-    let score = scoreLynchSlot(slot, trust);
+    let score = scoreLynchSlot(slot, trust, mediumAlive);
 
-    if (slot.medium === MARK.BLACK) score += 8;
-    if (slot.isPublic) score -= 6;
+    // 公開役職は吊れるが少し不利にする
+    if (slot.isPublic) score -= 8;
 
     return score;
   });
