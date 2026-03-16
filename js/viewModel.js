@@ -158,8 +158,8 @@ export function deriveViewModel(game, viewAsId) {
       revealAll,
 
       resultText: !p.alive ? (p.escaped ? "WIN" : "LOSE") : "",
-      wolfCount: wolves,
-      nonWolfCount: nonWolves,
+      wolfCount: (p.id === viewAsId) ? wolves : null,
+      nonWolfCount: (p.id === viewAsId) ? nonWolves : null,
 
       guardIncomingSlot: p.guardIncomingSlot,
 
