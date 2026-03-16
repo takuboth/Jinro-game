@@ -339,39 +339,6 @@ export function scoreLynchSlot(slot, trust, mediumAlive = false) {
   return 0;
 }
 
-export function classifySlotForProtect(slot) {
-  const a = slot.seerA;
-  const b = slot.seerB;
-  const m = slot.medium;
-
-  const blackCount = (a === MARK.BLACK ? 1 : 0) + (b === MARK.BLACK ? 1 : 0) + (m === MARK.BLACK ? 1 : 0);
-  const whiteCount = (a === MARK.WHITE ? 1 : 0) + (b === MARK.WHITE ? 1 : 0) + (m === MARK.WHITE ? 1 : 0);
-
-  if (slot.isPublic && (slot.publicKind === "A" || slot.publicKind === "B")) return "SEER";
-  if (slot.isPublic && slot.publicKind === "MEDIUM") return "MEDIUM";
-
-  if (whiteCount >= 2) return "CONFIRMED_WHITE";
-  if (whiteCount === 1 && blackCount === 0) return "HALF_WHITE";
-  if (whiteCount === 0 && blackCount === 0) return "GRAY";
-  if (blackCount === 1) return "HALF_BLACK";
-  if (blackCount >= 2) return "BLACK";
-
-  return "GRAY";
-}
-
-export function scoreProtectSlot(slot) {
-  const cls = classifySlotForProtect(slot);
-
-  if (cls === "SEER") return 100;
-  if (cls === "MEDIUM") return 85;
-  if (cls === "CONFIRMED_WHITE") return 70;
-  if (cls === "HALF_WHITE") return 55;
-  if (cls === "GRAY") return 40;
-  if (cls === "HALF_BLACK") return 20;
-  if (cls === "BLACK") return 5;
-  return 0;
-}
-
 export function weightedPickIndex(cands, scoreFn) {
   if (!cands || !cands.length) return null;
 
