@@ -453,19 +453,186 @@ export function pickCpuReserveTarget(player, seenMap, otherReservedIndex = null)
   });
 }
 
-export function pickCpuBiteTarget(player) {
-  const cands = getAliveBiteTargets(player);
-  if (!cands.length) return null;
+// ============================
+// 噛み・狩人 共通分類
+// ============================
 
-  return weightedPickIndex(cands, (slot) => scoreProtectSlot(slot));
+function classifyProtectTarget(slot, trust) {
+  const a = slot.seerA;
+  const b = slot.seerB;
+
+  const aBlack = a === MARK.BLACK;
+  const aWhite = a === MARK.WHITE;
+  const bBlack = b === MARK.BLACK;
+  const bWhite = b === MARK.WHITE;
+
+  const trueLike = trust.trueLike;
+
+  // 占い
+  if (slot.isPublic && (slot.publicKind === PUBLIC_KIND.A || slot.publicKind === PUBLIC_KIND.B)) {
+    if (trueLike === "A" && slot.publicKind === PUBLIC_KIND.A) return "SEER_HIGH";
+    if (trueLike === "B" && slot.publicKind === PUBLIC_KIND.B) return "SEER_HIGH";
+
+    if (trueLike === "A" && slot.publicKind === PUBLIC_KIND.B) return "SEER_LOW";
+    if (trueLike === "B" && slot.publicKind === PUBLIC_KIND.A) return "SEER_LOW";
+
+    return "SEER_FLAT";
+  }
+
+  // 霊媒
+  if (slot.isPublic && slot.publicKind === PUBLIC_KIND.MEDIUM) {
+    return "MEDIUM";
+  }
+
+  // 確定白
+  if (aWhite && bWhite) return "CERT_WHITE";
+
+  const blackCount = (aBlack ? 1 : 0) + (bBlack ? 1 : 0);
+  const whiteCount = (aWhite ? 1 : 0) + (bWhite ? 1 : 0);
+
+  // グレー
+  if (blackCount === 0 && whiteCount === 0) return "GRAY";
+
+  // 片白
+  if (blackCount === 0 && whiteCount === 1) {
+    return "HALF_WHITE";
+  }
+
+  // 片黒
+  if (blackCount === 1) {
+    return "HALF_BLACK";
+  }
+
+  // 両黒
+  if (aBlack && bBlack) return "BLACK";
+
+  return "GRAY";
 }
 
-export function pickCpuGuardTarget(rightPlayer, forbiddenSlotIndex) {
-  const cands = rightPlayer.slots
-    .map((slot, index) => ({ slot, index }))
-    .filter(x => !x.slot.dead && x.index !== forbiddenSlotIndex);
 
+// ============================
+// 噛み優先スコア
+// ============================
+
+function biteScore(cls, mediumTop = false) {
+
+  if (mediumTop) {
+    if (cls === "MEDIUM") return 200;
+  }
+
+  if (cls === "SEER_HIGH") return 120;
+  if (cls === "SEER_FLAT") return 110;
+  if (cls === "SEER_LOW") return 100;
+
+  if (cls === "MEDIUM") return 90;
+
+  if (cls === "CERT_WHITE") return 80;
+  if (cls === "HALF_WHITE") return 70;
+  if (cls === "GRAY") return 60;
+  if (cls === "HALF_BLACK") return 30;
+  if (cls === "BLACK") return 10;
+
+  return 0;
+}
+
+
+// ============================
+// 直前吊りが白黒か
+// ============================
+
+function lastLynchWasSplit(game) {
+  const slot = game.lastLynchedSlot;
+  if (!slot) return false;
+
+  const a = slot.seerA;
+  const b = slot.seerB;
+
+  return (
+    (a === MARK.WHITE && b === MARK.BLACK) ||
+    (a === MARK.BLACK && b === MARK.WHITE)
+  );
+}
+
+
+// ============================
+// 両黒存在判定
+// ============================
+
+function existDoubleBlack(players) {
+  for (const p of players) {
+    for (const s of p.slots) {
+
+      if (s.dead) continue;
+
+      if (s.seerA === MARK.BLACK && s.seerB === MARK.BLACK) {
+        return true;
+      }
+    }
+  }
+
+  return false;
+}
+
+
+// ============================
+// CPU 噛み
+// ============================
+
+export function pickCpuBiteTarget(selfPlayer, game) {
+
+  const cands = getAliveBiteTargets(selfPlayer);
   if (!cands.length) return null;
 
-  return weightedPickIndex(cands, (slot) => scoreProtectSlot(slot));
+  const trust = judgeLineTrust(selfPlayer);
+
+  let mediumTop = false;
+
+  if (lastLynchWasSplit(game)) {
+    mediumTop = true;
+  }
+
+  else if (existDoubleBlack(game.players)) {
+    mediumTop = true;
+  }
+
+  return weightedPickIndex(cands, (slot) => {
+
+    const cls = classifyProtectTarget(slot, trust);
+
+    return biteScore(cls, mediumTop);
+
+  });
+
+}
+
+
+// ============================
+// CPU 狩人
+// ============================
+
+export function pickCpuGuardTarget(selfPlayer, game) {
+
+  const cands = getAliveGuardTargets(selfPlayer);
+  if (!cands.length) return null;
+
+  const trust = judgeLineTrust(selfPlayer);
+
+  let mediumTop = false;
+
+  if (lastLynchWasSplit(game)) {
+    mediumTop = true;
+  }
+
+  else if (existDoubleBlack(game.players)) {
+    mediumTop = true;
+  }
+
+  return weightedPickIndex(cands, (slot) => {
+
+    const cls = classifyProtectTarget(slot, trust);
+
+    return biteScore(cls, mediumTop);
+
+  });
+
 }
