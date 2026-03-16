@@ -650,19 +650,35 @@ export function cpuDoOneImmediate(game) {
   }
 
   if (game.phase === PHASES.GUARD) {
-    if (rightId == null) {
-      advancePhase(game);
-      return;
-    }
-    const forbidden = actor.lastGuardTargetId === rightId ? actor.lastGuardSlot : null;
-    const pick = pickCpuGuardTarget(game.players[rightId], forbidden);
-    if (pick == null) {
-      logPush(game, `CPU P${actorId + 1} 守り設定 → 対象なし`);
-      advancePhase(game);
-      return;
-    }
-    applyGuard(game, actorId, rightId, pick);
+  if (rightId == null) {
+    advancePhase(game);
+    return;
   }
+
+  const forbidden = actor.lastGuardTargetId === rightId ? actor.lastGuardSlot : null;
+  const rightPlayer = game.players[rightId];
+
+  let pick = pickCpuGuardTarget(rightPlayer, game);
+
+  // 連続ガード禁止
+  if (pick != null && pick === forbidden) {
+    const candidates = rightPlayer.slots
+      .map((slot, index) => ({ slot, index }))
+      .filter(x => !x.slot.dead && x.index !== forbidden);
+
+    pick = candidates.length
+      ? candidates[Math.floor(Math.random() * candidates.length)].index
+      : null;
+  }
+
+  if (pick == null) {
+    logPush(game, `CPU P${actorId + 1} 守り設定 → 対象なし`);
+    advancePhase(game);
+    return;
+  }
+
+  applyGuard(game, actorId, rightId, pick);
+  return;
 }
 
 export function runAutoUntilHumanTurn(game) {
