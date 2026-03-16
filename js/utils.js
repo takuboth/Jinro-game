@@ -547,8 +547,10 @@ function biteScore(cls, mediumTop = false) {
 // ============================
 
 function lastLynchWasSplit(game) {
+
+  if (!game.lastLynchedSlot) return false;
+
   const slot = game.lastLynchedSlot;
-  if (!slot) return false;
 
   const a = slot.seerA;
   const b = slot.seerB;
