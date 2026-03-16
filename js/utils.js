@@ -256,23 +256,81 @@ export function judgeLineTrust(player) {
   };
 }
 
-export function classifySlotForLynch(slot, trust) {
+export function classifySlotForLynch(slot, trust, mediumAlive = false) {
   const a = slot.seerA;
   const b = slot.seerB;
 
+  const aBlack = a === MARK.BLACK;
+  const aWhite = a === MARK.WHITE;
+  const bBlack = b === MARK.BLACK;
+  const bWhite = b === MARK.WHITE;
+
   const trueLike = trust.trueLike;
 
-  if (trueLike === "A" && a === MARK.BLACK) return "TRUE_BLACK";
-  if (trueLike === "B" && b === MARK.BLACK) return "TRUE_BLACK";
+  // 1. 確定黒（A）
+  if (aBlack && bBlack) return "CERT_BLACK";
 
-  const blackCount = (a === MARK.BLACK ? 1 : 0) + (b === MARK.BLACK ? 1 : 0);
-  const whiteCount = (a === MARK.WHITE ? 1 : 0) + (b === MARK.WHITE ? 1 : 0);
+  // 白黒割れ
+  const isSplit =
+    (aBlack && bWhite) ||
+    (aWhite && bBlack);
 
-  if (blackCount === 1) return "HALF_BLACK";
+  if (isSplit) {
+    // 2. 白黒（霊媒生存）
+    if (mediumAlive) return "SPLIT_MEDIUM_ON";
+    // 6. 白黒（霊媒死亡）
+    return "SPLIT_MEDIUM_OFF";
+  }
+
+  const blackCount = (aBlack ? 1 : 0) + (bBlack ? 1 : 0);
+  const whiteCount = (aWhite ? 1 : 0) + (bWhite ? 1 : 0);
+
+  // 片黒
+  if (blackCount === 1) {
+    if (trueLike === "A" && aBlack) return "HALF_BLACK_HIGH";
+    if (trueLike === "B" && bBlack) return "HALF_BLACK_HIGH";
+
+    if (trueLike === "A" && bBlack) return "HALF_BLACK_LOW";
+    if (trueLike === "B" && aBlack) return "HALF_BLACK_LOW";
+
+    return "HALF_BLACK_FLAT";
+  }
+
+  // グレー
   if (blackCount === 0 && whiteCount === 0) return "GRAY";
-  if (blackCount === 0 && whiteCount === 1) return "HALF_WHITE";
-  if (blackCount === 0 && whiteCount === 2) return "WHITE";
+
+  // 片白
+  if (blackCount === 0 && whiteCount === 1) {
+    if (trueLike === "A" && aWhite) return "HALF_WHITE_HIGH";
+    if (trueLike === "B" && bWhite) return "HALF_WHITE_HIGH";
+
+    if (trueLike === "A" && bWhite) return "HALF_WHITE_LOW";
+    if (trueLike === "B" && aWhite) return "HALF_WHITE_LOW";
+
+    return "HALF_WHITE_FLAT";
+  }
+
+  // 確定白
+  if (blackCount === 0 && whiteCount >= 2) return "CERT_WHITE";
+
   return "GRAY";
+}
+
+export function scoreLynchSlot(slot, trust, mediumAlive = false) {
+  const cls = classifySlotForLynch(slot, trust, mediumAlive);
+
+  if (cls === "CERT_BLACK") return 110;
+  if (cls === "SPLIT_MEDIUM_ON") return 100;
+  if (cls === "HALF_BLACK_HIGH") return 90;
+  if (cls === "HALF_BLACK_FLAT") return 80;
+  if (cls === "HALF_BLACK_LOW") return 70;
+  if (cls === "SPLIT_MEDIUM_OFF") return 60;
+  if (cls === "GRAY") return 45;
+  if (cls === "HALF_WHITE_LOW") return 35;
+  if (cls === "HALF_WHITE_FLAT") return 30;
+  if (cls === "HALF_WHITE_HIGH") return 20;
+  if (cls === "CERT_WHITE") return 10;
+  return 0;
 }
 
 export function classifySlotForProtect(slot) {
@@ -293,17 +351,6 @@ export function classifySlotForProtect(slot) {
   if (blackCount >= 2) return "BLACK";
 
   return "GRAY";
-}
-
-export function scoreLynchSlot(slot, trust) {
-  const cls = classifySlotForLynch(slot, trust);
-
-  if (cls === "TRUE_BLACK") return 100;
-  if (cls === "HALF_BLACK") return 70;
-  if (cls === "GRAY") return 40;
-  if (cls === "HALF_WHITE") return 40; // 片白はグレー扱い
-  if (cls === "WHITE") return 10;
-  return 0;
 }
 
 export function scoreProtectSlot(slot) {
