@@ -679,6 +679,7 @@ export function cpuDoOneImmediate(game) {
 
   applyGuard(game, actorId, rightId, pick);
   return;
+  }
 }
 
 export function runAutoUntilHumanTurn(game) {
