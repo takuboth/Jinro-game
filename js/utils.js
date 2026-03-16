@@ -276,29 +276,46 @@ export function pickCpuLynchTarget(player) {
 
 export function pickCpuReserveTarget(player, seenMap, otherReservedIndex = null) {
   const unseen = hiddenReserveCandidates(player, seenMap);
+  if (!unseen.length) return null;
 
   const primary = unseen.filter(x => x.index !== otherReservedIndex);
-  const fallback = unseen;
+  const pool = primary.length ? primary : unseen;
 
-  const targetPool = primary.length ? primary : fallback;
-  if (!targetPool.length) return null;
+  if (!pool.length) return null;
 
-  return weightedPickIndex(targetPool, (slot, x) => {
-    let score = 0;
-
+  return weightedPickIndex(pool, (slot, x) => {
     const a = slot.seerA;
     const b = slot.seerB;
-    const m = slot.medium;
 
-    const blackCount = (a === MARK.BLACK ? 1 : 0) + (b === MARK.BLACK ? 1 : 0) + (m === MARK.BLACK ? 1 : 0);
-    const whiteCount = (a === MARK.WHITE ? 1 : 0) + (b === MARK.WHITE ? 1 : 0) + (m === MARK.WHITE ? 1 : 0);
+    const blackCount = (a === MARK.BLACK ? 1 : 0) + (b === MARK.BLACK ? 1 : 0);
+    const whiteCount = (a === MARK.WHITE ? 1 : 0) + (b === MARK.WHITE ? 1 : 0);
 
-    if (blackCount >= 1) score += 80;
-    else if (whiteCount === 0) score += 55;
-    else if (whiteCount === 1) score += 40;
-    else score += 20;
+    let score = 0;
 
-    if (otherReservedIndex != null && x.index === otherReservedIndex) score -= 30;
+    // 1. 片黒最優先
+    if (blackCount === 1) {
+      score = 100;
+    }
+    // 2. 未占い
+    else if (blackCount === 0 && whiteCount === 0) {
+      score = 75;
+    }
+    // 3. 片白
+    else if (blackCount === 0 && whiteCount === 1) {
+      score = 45;
+    }
+    // 4. 両白（ほぼ選ばない）
+    else if (blackCount === 0 && whiteCount >= 2) {
+      score = 5;
+    }
+    else {
+      score = 20;
+    }
+
+    // もう片方の占いと被らない方を優先
+    if (otherReservedIndex != null && x.index === otherReservedIndex) {
+      score -= 30;
+    }
 
     return score;
   });
