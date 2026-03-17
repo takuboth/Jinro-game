@@ -189,6 +189,7 @@ function nextAliveIndex(game, from, dir) {
   return null;
 }
 
+// 対象プレイヤー切り替え
 export function getLynchTargetId(game, actorId) {
   if (game.mode === MODES.VILLAGER) return actorId;
   return leftPlayerIndex(game, actorId);
@@ -204,12 +205,8 @@ export function getGuardTargetId(game, actorId) {
   return rightPlayerIndex(game, actorId);
 }
 
-export function getBiteSourceId(game, actorId) {
-  if (game.mode === MODES.VILLAGER) return leftPlayerIndex(game, actorId);
-  return actorId;
-}
-
 export function getBiteTargetId(game, actorId) {
+  if (game.mode === MODES.VILLAGER) return rightPlayerIndex(game, actorId);
   return actorId;
 }
 
@@ -415,13 +412,11 @@ function advancePhase(game) {
     game.phase = PHASES.RESERVE_A;
     return;
   }
-
   if (game.phase === PHASES.RESERVE_A) {
     game.phase = PHASES.RESERVE_B;
     return;
   }
 
-  // ここからモード分岐
   if (game.mode === MODES.WOLF) {
     if (game.phase === PHASES.RESERVE_B) {
       game.phase = PHASES.BITE;
@@ -437,7 +432,7 @@ function advancePhase(game) {
       return;
     }
   } else {
-    // 村人モード：狩人 → 噛み の順
+    // 村人モード：守り → 噛み
     if (game.phase === PHASES.RESERVE_B) {
       game.phase = PHASES.GUARD;
       return;
@@ -499,7 +494,7 @@ export function applyReserve(game, actorId, lineKind, targetId, slotIndex) {
   advancePhase(game);
 }
 
-export function applyBite(game, sourceId, targetId, slotIndex) {
+export function applyBite(game, actorId, targetId, slotIndex) {
   if (game.over) return;
 
   const target = game.players[targetId];
@@ -511,10 +506,10 @@ export function applyBite(game, sourceId, targetId, slotIndex) {
     target.guardIncomingSlot === slotIndex;
 
   if (guardActive) {
-    logPush(game, `P${sourceId + 1} 噛み → P${targetId + 1} S${slotIndex + 1}（ガードで不発）`);
+    logPush(game, `P${actorId + 1} 噛み → P${targetId + 1} S${slotIndex + 1}（ガードで不発）`);
   } else {
     killSlot(game, targetId, slotIndex, DEATH.BITE);
-    logPush(game, `P${sourceId + 1} 噛み → P${targetId + 1} S${slotIndex + 1}`);
+    logPush(game, `P${actorId + 1} 噛み → P${targetId + 1} S${slotIndex + 1}`);
   }
 
   advancePhase(game);
@@ -603,14 +598,8 @@ export function isHumanTurn(game) {
 
   const human = game.players[CONFIG.humanPlayerId];
   if (!human || !human.alive) return false;
-  if (game.turn !== CONFIG.humanPlayerId) return false;
 
-  // 村人モードではBITEだけ外部行動なので自動処理
-  if (game.mode === MODES.VILLAGER && game.phase === PHASES.BITE) {
-    return false;
-  }
-
-  return true;
+  return game.turn === CONFIG.humanPlayerId;
 }
 
 export function cpuDoOneImmediate(game) {
@@ -623,7 +612,6 @@ export function cpuDoOneImmediate(game) {
   const lynchTargetId = getLynchTargetId(game, actorId);
   const reserveTargetId = getReserveTargetId(game, actorId);
   const guardTargetId = getGuardTargetId(game, actorId);
-  const biteSourceId = getBiteSourceId(game, actorId);
   const biteTargetId = getBiteTargetId(game, actorId);
 
   if (game.phase === PHASES.LYNCH) {
@@ -691,7 +679,7 @@ export function cpuDoOneImmediate(game) {
   }
 
   if (game.phase === PHASES.BITE) {
-    if (biteSourceId == null || biteTargetId == null) {
+    if (biteTargetId == null) {
       logPush(game, `CPU P${actorId + 1} 噛み → 対象なし`);
       advancePhase(game);
       return;
@@ -699,11 +687,11 @@ export function cpuDoOneImmediate(game) {
 
     const pick = pickCpuBiteTarget(game.players[biteTargetId], game);
     if (pick == null) {
-      logPush(game, `CPU P${biteSourceId + 1} 噛み → 対象なし`);
+      logPush(game, `CPU P${actorId + 1} 噛み → 対象なし`);
       advancePhase(game);
       return;
     }
-    applyBite(game, biteSourceId, biteTargetId, pick);
+    applyBite(game, actorId, biteTargetId, pick);
     return;
   }
 
@@ -764,6 +752,7 @@ export function applyHumanPick(game, viewAsId, playerId, slotIndex) {
   const lynchTargetId = getLynchTargetId(game, actorId);
   const reserveTargetId = getReserveTargetId(game, actorId);
   const guardTargetId = getGuardTargetId(game, actorId);
+  const biteTargetId = getBiteTargetId(game, actorId);
 
   if (game.phase === PHASES.LYNCH) {
     if (lynchTargetId == null || playerId !== lynchTargetId) return;
@@ -784,6 +773,8 @@ export function applyHumanPick(game, viewAsId, playerId, slotIndex) {
   }
 
   if (game.phase === PHASES.BITE) {
+    if (biteTargetId == null || playerId !== biteTargetId) return;
+    applyBite(game, actorId, playerId, slotIndex);
     return;
   }
 
