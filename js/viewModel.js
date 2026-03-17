@@ -1,4 +1,4 @@
-import { CONFIG, ROLES, PHASES, DEATH, PUBLIC_KIND } from "./config.js";
+import { CONFIG, MODES, ROLES, PHASES, DEATH, PUBLIC_KIND } from "./config.js";
 import {
   roleChar,
   publicLabel,
@@ -6,7 +6,14 @@ import {
   countAliveWolves,
   countAliveNonWolves,
 } from "./utils.js";
-import { leftPlayerIndex, rightPlayerIndex, phaseLabel } from "./game.js";
+import {
+  leftPlayerIndex,
+  rightPlayerIndex,
+  getLynchTargetId,
+  getReserveTargetId,
+  getGuardTargetId,
+  phaseLabel
+} from "./game.js";
 
 function fixedLeftId(viewAsId) {
   return (viewAsId - 1 + CONFIG.playerCount) % CONFIG.playerCount;
@@ -37,7 +44,8 @@ function slotRoleText(slot, playerId, viewAsId, revealAll) {
     return publicLabel(slot.publicKind);
   }
 
-  if (playerId === viewAsId && slot.role === ROLES.WOLF) {
+  // 両モードとも狼は見える前提
+  if (slot.role === ROLES.WOLF) {
     return "狼";
   }
 
@@ -59,7 +67,8 @@ export function deriveViewModel(game, viewAsId) {
     !game.over &&
     actor &&
     actor.alive &&
-    actorId === humanId
+    actorId === humanId &&
+    !(game.mode === MODES.VILLAGER && game.phase === PHASES.BITE)
   );
 
   const clickable = Array.from({ length: CONFIG.playerCount }, () =>
@@ -68,58 +77,58 @@ export function deriveViewModel(game, viewAsId) {
 
   const focusPlayers = [];
 
-  const leftId = actor ? leftPlayerIndex(game, actorId) : null;
-  const rightId = actor ? rightPlayerIndex(game, actorId) : null;
+  const lynchTargetId = actor ? getLynchTargetId(game, actorId) : null;
+  const reserveTargetId = actor ? getReserveTargetId(game, actorId) : null;
+  const guardTargetId = actor ? getGuardTargetId(game, actorId) : null;
 
   if (humanCanAct) {
-    if (
-      game.phase === PHASES.LYNCH ||
-      game.phase === PHASES.RESERVE_A ||
-      game.phase === PHASES.RESERVE_B
-    ) {
-      if (leftId != null) focusPlayers.push(leftId);
+    if (game.phase === PHASES.LYNCH) {
+      if (lynchTargetId != null) focusPlayers.push(lynchTargetId);
+    } else if (game.phase === PHASES.RESERVE_A || game.phase === PHASES.RESERVE_B) {
+      if (reserveTargetId != null) focusPlayers.push(reserveTargetId);
     } else if (game.phase === PHASES.BITE) {
+      // 村人モードでは humanCanAct false なので来ない
       focusPlayers.push(actorId);
     } else if (game.phase === PHASES.GUARD) {
-      if (rightId != null) focusPlayers.push(rightId);
+      if (guardTargetId != null) focusPlayers.push(guardTargetId);
     }
   }
 
   if (humanCanAct) {
-    if (game.phase === PHASES.LYNCH && leftId != null) {
-      const target = game.players[leftId];
+    if (game.phase === PHASES.LYNCH && lynchTargetId != null) {
+      const target = game.players[lynchTargetId];
       for (let i = 0; i < CONFIG.slotCount; i++) {
-        clickable[leftId][i] = !target.slots[i].dead;
+        clickable[lynchTargetId][i] = !target.slots[i].dead;
       }
     }
 
-    if (game.phase === PHASES.RESERVE_A && leftId != null) {
-      const target = game.players[leftId];
+    if (game.phase === PHASES.RESERVE_A && reserveTargetId != null) {
+      const target = game.players[reserveTargetId];
       const aAlive = target.slots.some(
         s => s.isPublic && s.publicKind === PUBLIC_KIND.A && !s.dead
       );
       if (aAlive) {
         for (let i = 0; i < CONFIG.slotCount; i++) {
           const s = target.slots[i];
-          clickable[leftId][i] = !s.dead && !s.isPublic && !actor.seenA[i];
+          clickable[reserveTargetId][i] = !s.dead && !s.isPublic && !actor.seenA[i];
         }
       }
     }
 
-    if (game.phase === PHASES.RESERVE_B && leftId != null) {
-      const target = game.players[leftId];
+    if (game.phase === PHASES.RESERVE_B && reserveTargetId != null) {
+      const target = game.players[reserveTargetId];
       const bAlive = target.slots.some(
         s => s.isPublic && s.publicKind === PUBLIC_KIND.B && !s.dead
       );
       if (bAlive) {
         for (let i = 0; i < CONFIG.slotCount; i++) {
           const s = target.slots[i];
-          clickable[leftId][i] = !s.dead && !s.isPublic && !actor.seenB[i];
+          clickable[reserveTargetId][i] = !s.dead && !s.isPublic && !actor.seenB[i];
         }
       }
     }
 
-    if (game.phase === PHASES.BITE) {
+    if (game.phase === PHASES.BITE && game.mode === MODES.WOLF) {
       const self = game.players[actorId];
       for (let i = 0; i < CONFIG.slotCount; i++) {
         const s = self.slots[i];
@@ -127,19 +136,20 @@ export function deriveViewModel(game, viewAsId) {
       }
     }
 
-    if (game.phase === PHASES.GUARD && rightId != null) {
-      const target = game.players[rightId];
-      const forbidden = actor.lastGuardTargetId === rightId ? actor.lastGuardSlot : null;
+    if (game.phase === PHASES.GUARD && guardTargetId != null) {
+      const target = game.players[guardTargetId];
+      const forbidden = actor.lastGuardTargetId === guardTargetId ? actor.lastGuardSlot : null;
       for (let i = 0; i < CONFIG.slotCount; i++) {
         const s = target.slots[i];
-        clickable[rightId][i] = !s.dead && i !== forbidden;
+        clickable[guardTargetId][i] = !s.dead && i !== forbidden;
       }
     }
   }
 
+  const modeText = game.mode === MODES.WOLF ? "人狼" : "村人";
   const status = game.over
-    ? `終了（勝者: ${game.winners.length ? game.winners.map(id => `P${id + 1}`).join(", ") : "なし"}）`
-    : phaseLabel(game.phase);
+    ? `${modeText}モード / 終了（勝者: ${game.winners.length ? game.winners.map(id => `P${id + 1}`).join(", ") : "なし"}）`
+    : `${modeText}モード / ${phaseLabel(game.phase)}`;
 
   const acting = game.over
     ? ""
