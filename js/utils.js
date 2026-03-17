@@ -54,14 +54,6 @@ export function colorFromRole(role) {
   return isWolf(role) ? MARK.BLACK : MARK.WHITE;
 }
 
-export function isPublicSlot(slot) {
-  return !!slot.isPublic;
-}
-
-export function isHiddenSlot(slot) {
-  return !slot.isPublic;
-}
-
 export function getPublicSlotIndexByKind(player, kind) {
   const idx = player.slots.findIndex(s => s.isPublic && s.publicKind === kind);
   return idx >= 0 ? idx : null;
@@ -85,7 +77,7 @@ export function getAliveBiteTargets(player) {
     .filter(x => !x.slot.dead && x.slot.role !== ROLES.WOLF);
 }
 
-export function getAliveGuardTargets(player){
+export function getAliveGuardTargets(player) {
   return player.slots
     .map((slot, index) => ({ slot, index }))
     .filter(x => !x.slot.dead);
@@ -105,10 +97,6 @@ export function countAliveWolves(player) {
 
 export function countAliveNonWolves(player) {
   return player.slots.filter(s => !s.dead && s.role !== ROLES.WOLF).length;
-}
-
-export function countAliveOpenAndHidden(player) {
-  return player.slots.filter(s => !s.dead).length;
 }
 
 export function isLineAlive(player, kind) {
@@ -148,23 +136,12 @@ export function hiddenReserveCandidates(player, seenMap) {
     .filter(x => !x.slot.dead && !x.slot.isPublic && !seenMap[x.index]);
 }
 
-export function markScore(slot) {
-  const a = slot.seerA;
-  const b = slot.seerB;
-  const m = slot.medium;
-
-  const vals = [a, b, m];
-  if (vals.includes(MARK.BLACK)) return 3;
-  if (vals.includes(MARK.WHITE)) return 1;
-  return 2;
-}
-
 export function judgeLineTrust(player) {
   let trustA = 0;
   let trustB = 0;
 
-  let fixedTrue = null;   // "A" | "B" | null
-  let fixedFalse = null;  // "A" | "B" | null
+  let fixedTrue = null;
+  let fixedFalse = null;
 
   for (const slot of player.slots) {
     const a = slot.seerA;
@@ -178,12 +155,8 @@ export function judgeLineTrust(player) {
     const mBlack = m === MARK.BLACK;
     const mWhite = m === MARK.WHITE;
 
-    // 1) 同一スロットで白黒割れ + 霊結果あり
-    //    → 霊結果と一致した方を真確定、逆を偽確定
     if (m !== MARK.NONE) {
-      const split =
-        (aBlack && bWhite) ||
-        (aWhite && bBlack);
+      const split = (aBlack && bWhite) || (aWhite && bBlack);
 
       if (split) {
         if (mBlack) {
@@ -206,12 +179,8 @@ export function judgeLineTrust(player) {
       }
     }
 
-    // 2) 片黒 + 霊白
-    //    → その黒出し占いを偽確定
     if (mWhite) {
-      const oneBlack =
-        (aBlack ? 1 : 0) + (bBlack ? 1 : 0) === 1;
-
+      const oneBlack = (aBlack ? 1 : 0) + (bBlack ? 1 : 0) === 1;
       if (oneBlack) {
         if (aBlack) {
           fixedTrue = "B";
@@ -223,24 +192,15 @@ export function judgeLineTrust(player) {
       }
     }
 
-    // 3) 片黒 + 霊黒
-    //    → その占いに信頼度 +80
     if (mBlack) {
-      const oneBlack =
-        (aBlack ? 1 : 0) + (bBlack ? 1 : 0) === 1;
-
+      const oneBlack = (aBlack ? 1 : 0) + (bBlack ? 1 : 0) === 1;
       if (oneBlack) {
         if (aBlack) trustA += 80;
         if (bBlack) trustB += 80;
       }
     }
-
-    // 4) 片白 + 霊白
-    // 5) 両白 + 霊白
-    //    → 変化なし
   }
 
-  // 確定情報が出た場合は最優先
   if (fixedTrue === "A") {
     trustA = 1000;
     trustB = -1000;
@@ -273,25 +233,17 @@ export function classifySlotForLynch(slot, trust, mediumAlive = false) {
 
   const trueLike = trust.trueLike;
 
-  // 1. 確定黒（A）
   if (aBlack && bBlack) return "CERT_BLACK";
 
-  // 白黒割れ
-  const isSplit =
-    (aBlack && bWhite) ||
-    (aWhite && bBlack);
-
+  const isSplit = (aBlack && bWhite) || (aWhite && bBlack);
   if (isSplit) {
-    // 2. 白黒（霊媒生存）
     if (mediumAlive) return "SPLIT_MEDIUM_ON";
-    // 6. 白黒（霊媒死亡）
     return "SPLIT_MEDIUM_OFF";
   }
 
   const blackCount = (aBlack ? 1 : 0) + (bBlack ? 1 : 0);
   const whiteCount = (aWhite ? 1 : 0) + (bWhite ? 1 : 0);
 
-  // 片黒
   if (blackCount === 1) {
     if (trueLike === "A" && aBlack) return "HALF_BLACK_HIGH";
     if (trueLike === "B" && bBlack) return "HALF_BLACK_HIGH";
@@ -302,10 +254,8 @@ export function classifySlotForLynch(slot, trust, mediumAlive = false) {
     return "HALF_BLACK_FLAT";
   }
 
-  // グレー
   if (blackCount === 0 && whiteCount === 0) return "GRAY";
 
-  // 片白
   if (blackCount === 0 && whiteCount === 1) {
     if (trueLike === "A" && aWhite) return "HALF_WHITE_HIGH";
     if (trueLike === "B" && bWhite) return "HALF_WHITE_HIGH";
@@ -316,50 +266,25 @@ export function classifySlotForLynch(slot, trust, mediumAlive = false) {
     return "HALF_WHITE_FLAT";
   }
 
-  // 確定白
   if (blackCount === 0 && whiteCount >= 2) return "CERT_WHITE";
 
   return "GRAY";
 }
 
-export function scoreLynchSlot(slot, trust, mediumAlive = false) {
-  const cls = classifySlotForLynch(slot, trust, mediumAlive);
+function pickByPriorityGroups(cands, classifyFn, priority, preferHidden = false) {
+  for (const cls of priority) {
+    const hits = cands.filter(x => classifyFn(x.slot, x) === cls);
+    if (!hits.length) continue;
 
-  if (cls === "CERT_BLACK") return 110;
-  if (cls === "SPLIT_MEDIUM_ON") return 100;
-  if (cls === "HALF_BLACK_HIGH") return 90;
-  if (cls === "HALF_BLACK_FLAT") return 80;
-  if (cls === "HALF_BLACK_LOW") return 70;
-  if (cls === "SPLIT_MEDIUM_OFF") return 60;
-  if (cls === "GRAY") return 45;
-  if (cls === "HALF_WHITE_LOW") return 35;
-  if (cls === "HALF_WHITE_FLAT") return 30;
-  if (cls === "HALF_WHITE_HIGH") return 20;
-  if (cls === "CERT_WHITE") return 10;
-  return 0;
-}
+    if (preferHidden) {
+      const hidden = hits.filter(x => !x.slot.isPublic);
+      if (hidden.length) return pickRandom(hidden)?.index ?? null;
+    }
 
-export function weightedPickIndex(cands, scoreFn) {
-  if (!cands || !cands.length) return null;
-
-  const scored = cands.map(x => ({
-    ...x,
-    score: Math.max(0, scoreFn(x.slot, x) || 0),
-  }));
-
-  const total = scored.reduce((sum, x) => sum + x.score, 0);
-
-  if (total <= 0) {
-    return pickRandom(scored)?.index ?? null;
+    return pickRandom(hits)?.index ?? null;
   }
 
-  let r = Math.random() * total;
-  for (const x of scored) {
-    r -= x.score;
-    if (r <= 0) return x.index;
-  }
-
-  return scored[scored.length - 1].index;
+  return null;
 }
 
 export function pickCpuLynchTarget(player) {
@@ -369,66 +294,64 @@ export function pickCpuLynchTarget(player) {
   const trust = judgeLineTrust(player);
   const mediumAlive = isLineAlive(player, PUBLIC_KIND.MEDIUM);
 
-  return weightedPickIndex(alive, (slot) => {
-    let score = scoreLynchSlot(slot, trust, mediumAlive);
+  const priority = [
+    "CERT_BLACK",
+    "SPLIT_MEDIUM_ON",
+    "HALF_BLACK_HIGH",
+    "HALF_BLACK_FLAT",
+    "HALF_BLACK_LOW",
+    "SPLIT_MEDIUM_OFF",
+    "GRAY",
+    "HALF_WHITE_LOW",
+    "HALF_WHITE_FLAT",
+    "HALF_WHITE_HIGH",
+    "CERT_WHITE",
+  ];
 
-    // 公開役職は吊れるが少し不利にする
-    if (slot.isPublic) score -= 8;
-
-    return score;
-  });
+  return pickByPriorityGroups(
+    alive,
+    (slot) => classifySlotForLynch(slot, trust, mediumAlive),
+    priority,
+    true
+  );
 }
 
 export function pickCpuReserveTarget(player, seenMap, otherReservedIndex = null) {
   const unseen = hiddenReserveCandidates(player, seenMap);
   if (!unseen.length) return null;
 
-  const primary = unseen.filter(x => x.index !== otherReservedIndex);
-  const pool = primary.length ? primary : unseen;
+  const priority = [
+    "HALF_BLACK",
+    "GRAY",
+    "HALF_WHITE",
+    "CERT_WHITE",
+  ];
 
-  if (!pool.length) return null;
-
-  return weightedPickIndex(pool, (slot, x) => {
+  const classify = (slot) => {
     const a = slot.seerA;
     const b = slot.seerB;
-
     const blackCount = (a === MARK.BLACK ? 1 : 0) + (b === MARK.BLACK ? 1 : 0);
     const whiteCount = (a === MARK.WHITE ? 1 : 0) + (b === MARK.WHITE ? 1 : 0);
 
-    let score = 0;
+    if (blackCount === 1) return "HALF_BLACK";
+    if (blackCount === 0 && whiteCount === 0) return "GRAY";
+    if (blackCount === 0 && whiteCount === 1) return "HALF_WHITE";
+    if (blackCount === 0 && whiteCount >= 2) return "CERT_WHITE";
+    return "GRAY";
+  };
 
-    // 1. 片黒最優先
-    if (blackCount === 1) {
-      score = 100;
-    }
-    // 2. 未占い
-    else if (blackCount === 0 && whiteCount === 0) {
-      score = 75;
-    }
-    // 3. 片白
-    else if (blackCount === 0 && whiteCount === 1) {
-      score = 45;
-    }
-    // 4. 両白（ほぼ選ばない）
-    else if (blackCount === 0 && whiteCount >= 2) {
-      score = 5;
-    }
-    else {
-      score = 20;
-    }
+  for (const cls of priority) {
+    let hits = unseen.filter(x => classify(x.slot) === cls);
+    if (!hits.length) continue;
 
-    // もう片方の占いと被らない方を優先
-    if (otherReservedIndex != null && x.index === otherReservedIndex) {
-      score -= 30;
-    }
+    const noOverlap = hits.filter(x => x.index !== otherReservedIndex);
+    if (noOverlap.length) hits = noOverlap;
 
-    return score;
-  });
+    return pickRandom(hits)?.index ?? null;
+  }
+
+  return pickRandom(unseen)?.index ?? null;
 }
-
-// ============================
-// 噛み・狩人 共通分類
-// ============================
 
 function classifyProtectTarget(slot, trust) {
   const a = slot.seerA;
@@ -441,7 +364,6 @@ function classifyProtectTarget(slot, trust) {
 
   const trueLike = trust.trueLike;
 
-  // 占い
   if (slot.isPublic && (slot.publicKind === PUBLIC_KIND.A || slot.publicKind === PUBLIC_KIND.B)) {
     if (trueLike === "A" && slot.publicKind === PUBLIC_KIND.A) return "SEER_HIGH";
     if (trueLike === "B" && slot.publicKind === PUBLIC_KIND.B) return "SEER_HIGH";
@@ -452,73 +374,27 @@ function classifyProtectTarget(slot, trust) {
     return "SEER_FLAT";
   }
 
-  // 霊媒
   if (slot.isPublic && slot.publicKind === PUBLIC_KIND.MEDIUM) {
     return "MEDIUM";
   }
 
-  // 確定白
   if (aWhite && bWhite) return "CERT_WHITE";
 
   const blackCount = (aBlack ? 1 : 0) + (bBlack ? 1 : 0);
   const whiteCount = (aWhite ? 1 : 0) + (bWhite ? 1 : 0);
 
-  // グレー
+  if (blackCount === 0 && whiteCount === 1) return "HALF_WHITE";
   if (blackCount === 0 && whiteCount === 0) return "GRAY";
-
-  // 片白
-  if (blackCount === 0 && whiteCount === 1) {
-    return "HALF_WHITE";
-  }
-
-  // 片黒
-  if (blackCount === 1) {
-    return "HALF_BLACK";
-  }
-
-  // 両黒
+  if (blackCount === 1) return "HALF_BLACK";
   if (aBlack && bBlack) return "BLACK";
 
   return "GRAY";
 }
 
-
-// ============================
-// 噛み優先スコア
-// ============================
-
-function biteScore(cls, mediumTop = false) {
-
-  if (mediumTop) {
-    if (cls === "MEDIUM") return 200;
-  }
-
-  if (cls === "SEER_HIGH") return 120;
-  if (cls === "SEER_FLAT") return 110;
-  if (cls === "SEER_LOW") return 100;
-
-  if (cls === "MEDIUM") return 90;
-
-  if (cls === "CERT_WHITE") return 80;
-  if (cls === "HALF_WHITE") return 70;
-  if (cls === "GRAY") return 60;
-  if (cls === "HALF_BLACK") return 30;
-  if (cls === "BLACK") return 10;
-
-  return 0;
-}
-
-
-// ============================
-// 直前吊りが白黒か
-// ============================
-
 function lastLynchWasSplit(game) {
-
   if (!game.lastLynchedSlot) return false;
 
   const slot = game.lastLynchedSlot;
-
   const a = slot.seerA;
   const b = slot.seerB;
 
@@ -528,86 +404,70 @@ function lastLynchWasSplit(game) {
   );
 }
 
-
-// ============================
-// 両黒存在判定
-// ============================
-
 function existDoubleBlack(players) {
   for (const p of players) {
     for (const s of p.slots) {
-
       if (s.dead) continue;
-
       if (s.seerA === MARK.BLACK && s.seerB === MARK.BLACK) {
         return true;
       }
     }
   }
-
   return false;
 }
 
-
-// ============================
-// CPU 噛み
-// ============================
-
 export function pickCpuBiteTarget(selfPlayer, game) {
-
   const cands = getAliveBiteTargets(selfPlayer);
   if (!cands.length) return null;
 
   const trust = judgeLineTrust(selfPlayer);
 
-  let mediumTop = false;
+  const mediumTop = lastLynchWasSplit(game) || existDoubleBlack(game.players);
 
-  if (lastLynchWasSplit(game)) {
-    mediumTop = true;
+  const priority = mediumTop
+    ? ["MEDIUM"]
+    : ["SEER_HIGH", "SEER_FLAT", "SEER_LOW", "MEDIUM", "CERT_WHITE", "HALF_WHITE", "GRAY", "HALF_BLACK", "BLACK"];
+
+  if (mediumTop) {
+    return pickByPriorityGroups(
+      cands,
+      (slot) => classifyProtectTarget(slot, trust),
+      priority,
+      false
+    );
   }
 
-  else if (existDoubleBlack(game.players)) {
-    mediumTop = true;
-  }
+  // 通常時は上位2カテゴリから抽選
+  const top1 = cands.filter(x => classifyProtectTarget(x.slot, trust) === priority[0]);
+  const top2 = cands.filter(x => classifyProtectTarget(x.slot, trust) === priority[1]);
+  const pool = [...top1, ...top2];
 
-  return weightedPickIndex(cands, (slot) => {
+  if (pool.length) return pickRandom(pool)?.index ?? null;
 
-    const cls = classifyProtectTarget(slot, trust);
-
-    return biteScore(cls, mediumTop);
-
-  });
-
+  return pickByPriorityGroups(
+    cands,
+    (slot) => classifyProtectTarget(slot, trust),
+    priority,
+    false
+  );
 }
 
-
-// ============================
-// CPU 狩人
-// ============================
-
 export function pickCpuGuardTarget(selfPlayer, game) {
-
   const cands = getAliveGuardTargets(selfPlayer);
   if (!cands.length) return null;
 
   const trust = judgeLineTrust(selfPlayer);
 
-  let mediumTop = false;
+  const mediumTop = lastLynchWasSplit(game) || existDoubleBlack(game.players);
 
-  if (lastLynchWasSplit(game)) {
-    mediumTop = true;
-  }
+  const priority = mediumTop
+    ? ["MEDIUM", "SEER_HIGH", "SEER_FLAT", "SEER_LOW", "CERT_WHITE", "HALF_WHITE", "GRAY", "HALF_BLACK", "BLACK"]
+    : ["SEER_HIGH", "SEER_FLAT", "SEER_LOW", "MEDIUM", "CERT_WHITE", "HALF_WHITE", "GRAY", "HALF_BLACK", "BLACK"];
 
-  else if (existDoubleBlack(game.players)) {
-    mediumTop = true;
-  }
-
-  return weightedPickIndex(cands, (slot) => {
-
-    const cls = classifyProtectTarget(slot, trust);
-
-    return biteScore(cls, mediumTop);
-
-  });
-
+  return pickByPriorityGroups(
+    cands,
+    (slot) => classifyProtectTarget(slot, trust),
+    priority,
+    false
+  );
 }
