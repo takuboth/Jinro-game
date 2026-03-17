@@ -68,7 +68,6 @@ export function deriveViewModel(game, viewAsId) {
 
   const focusPlayers = [];
 
-  // 操作対象はゲーム上の生存者基準で計算
   const leftId = actor ? leftPlayerIndex(game, actorId) : null;
   const rightId = actor ? rightPlayerIndex(game, actorId) : null;
 
