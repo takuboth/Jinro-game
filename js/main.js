@@ -39,7 +39,7 @@ async function boot() {
 
     const { deriveViewModel } = vmMod;
     const { buildRenderer } = renMod;
-    const { CONFIG } = cfgMod;
+    const { CONFIG, PHASES } = cfgMod;
 
     let game = null;
     let viewAsId = 0;
@@ -49,6 +49,24 @@ async function boot() {
     const selViewAs = root.querySelector("#selViewAs");
     const btnAbsentOk = root.querySelector("#btnAbsentOk");
     const btnCpuMode = root.querySelector("#btnCpuMode");
+
+    function autoSkipHumanReserveIfNoChoice() {
+      if (!game || game.over) return false;
+      if (game.turn !== CONFIG.humanPlayerId) return false;
+
+      // 占A / 占B だけ自動スキップ
+      if (
+        game.phase !== PHASES.RESERVE_A &&
+        game.phase !== PHASES.RESERVE_B
+      ) {
+        return false;
+      }
+
+      if (!canAbsentOk(game)) return false;
+
+      doAbsentOk(game);
+      return true;
+    }
 
     const renderer = buildRenderer(root, async (playerId, slotIndex) => {
       if (busy || !game) return;
@@ -60,12 +78,14 @@ async function boot() {
       try {
         applyHumanPick(game, viewAsId, playerId, slotIndex);
         render();
-        
+
         while (autoSkipHumanReserveIfNoChoice()) {
           render();
         }
+
         await runCpuTurnsWithMode();
         render();
+
         while (autoSkipHumanReserveIfNoChoice()) {
           render();
           await runCpuTurnsWithMode();
@@ -81,37 +101,6 @@ async function boot() {
       if (customStatus) vm.status = customStatus;
       renderer.update(vm);
       btnAbsentOk.disabled = !game || !canAbsentOk(game);
-    }
-
-    function autoSkipHumanReserveIfNoChoice() {
-      if (!game || game.over) return false;
-      if (game.turn !== CONFIG.humanPlayerId) return false;
-      
-      // 占A / 占B だけ自動スキップ
-      if (
-        game.phase !== PHASES.RESERVE_A &&
-        game.phase !== PHASES.RESERVE_B
-      ) {
-        return false;
-      }
-      
-      if (!canAbsentOk(game)) return false;
-      
-      doAbsentOk(game);
-      return true;
-
-      while (autoSkipHumanReserveIfNoChoice()) {
-        render();
-      }
-      
-      await runCpuTurnsWithMode();
-      render();
-      
-      while (autoSkipHumanReserveIfNoChoice()) {
-        render();
-        await runCpuTurnsWithMode();
-        render();
-      }
     }
 
     function renderThinkingStatus() {
@@ -158,14 +147,14 @@ async function boot() {
         game = makeNewGame();
         viewAsId = CONFIG.humanPlayerId;
         render();
-        
-        // 人間ターン開始時、占い候補が無ければ自動スキップ
+
         while (autoSkipHumanReserveIfNoChoice()) {
           render();
         }
-        
+
         await runCpuTurnsWithMode();
         render();
+
         while (autoSkipHumanReserveIfNoChoice()) {
           render();
           await runCpuTurnsWithMode();
@@ -175,7 +164,7 @@ async function boot() {
         busy = false;
       }
     }
-    
+
     btnNew.addEventListener("click", async () => {
       await newGame();
     });
@@ -192,8 +181,19 @@ async function boot() {
       try {
         doAbsentOk(game);
         render();
+
+        while (autoSkipHumanReserveIfNoChoice()) {
+          render();
+        }
+
         await runCpuTurnsWithMode();
         render();
+
+        while (autoSkipHumanReserveIfNoChoice()) {
+          render();
+          await runCpuTurnsWithMode();
+          render();
+        }
       } finally {
         busy = false;
       }
