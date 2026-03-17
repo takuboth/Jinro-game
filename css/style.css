@@ -133,6 +133,11 @@ select{
   padding: 6px;
 }
 
+.prelation{
+  min-height: 16px;
+  line-height: 16px;
+}
+
 .players{
   display: grid;
   grid-template-columns: repeat(3, 1fr);
