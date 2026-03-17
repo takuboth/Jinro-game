@@ -416,12 +416,11 @@ function existDoubleBlack(players) {
   return false;
 }
 
-export function pickCpuBiteTarget(selfPlayer, game) {
-  const cands = getAliveBiteTargets(selfPlayer);
+export function pickCpuBiteTarget(targetPlayer, game) {
+  const cands = getAliveBiteTargets(targetPlayer);
   if (!cands.length) return null;
 
-  const trust = judgeLineTrust(selfPlayer);
-
+  const trust = judgeLineTrust(targetPlayer);
   const mediumTop = lastLynchWasSplit(game) || existDoubleBlack(game.players);
 
   const priority = mediumTop
@@ -437,7 +436,6 @@ export function pickCpuBiteTarget(selfPlayer, game) {
     );
   }
 
-  // 通常時は上位2カテゴリから抽選
   const top1 = cands.filter(x => classifyProtectTarget(x.slot, trust) === priority[0]);
   const top2 = cands.filter(x => classifyProtectTarget(x.slot, trust) === priority[1]);
   const pool = [...top1, ...top2];
@@ -452,12 +450,11 @@ export function pickCpuBiteTarget(selfPlayer, game) {
   );
 }
 
-export function pickCpuGuardTarget(selfPlayer, game) {
-  const cands = getAliveGuardTargets(selfPlayer);
+export function pickCpuGuardTarget(targetPlayer, game) {
+  const cands = getAliveGuardTargets(targetPlayer);
   if (!cands.length) return null;
 
-  const trust = judgeLineTrust(selfPlayer);
-
+  const trust = judgeLineTrust(targetPlayer);
   const mediumTop = lastLynchWasSplit(game) || existDoubleBlack(game.players);
 
   const priority = mediumTop
