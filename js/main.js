@@ -39,22 +39,23 @@ async function boot() {
 
     const { deriveViewModel } = vmMod;
     const { buildRenderer } = renMod;
-    const { CONFIG, PHASES } = cfgMod;
+    const { CONFIG, PHASES, MODES } = cfgMod;
 
     let game = null;
     let viewAsId = 0;
     let busy = false;
+    let selectedMode = CONFIG.defaultMode;
 
     const btnNew = root.querySelector("#btnNew");
     const selViewAs = root.querySelector("#selViewAs");
     const btnAbsentOk = root.querySelector("#btnAbsentOk");
     const btnCpuMode = root.querySelector("#btnCpuMode");
+    const btnMode = root.querySelector("#btnMode");
 
     function autoSkipHumanReserveIfNoChoice() {
       if (!game || game.over) return false;
       if (game.turn !== CONFIG.humanPlayerId) return false;
 
-      // 占A / 占B だけ自動スキップ
       if (
         game.phase !== PHASES.RESERVE_A &&
         game.phase !== PHASES.RESERVE_B
@@ -140,12 +141,18 @@ async function boot() {
       btnCpuMode.textContent = CONFIG.cpuOnlineLike ? "ON" : "OFF";
     }
 
+    function refreshModeButton() {
+      if (!btnMode) return;
+      btnMode.textContent = selectedMode === MODES.WOLF ? "狼" : "村";
+    }
+
     async function newGame() {
       if (busy) return;
       busy = true;
       try {
-        game = makeNewGame();
+        game = makeNewGame(selectedMode);
         viewAsId = CONFIG.humanPlayerId;
+        if (selViewAs) selViewAs.value = String(viewAsId);
         render();
 
         while (autoSkipHumanReserveIfNoChoice()) {
@@ -206,6 +213,15 @@ async function boot() {
         refreshCpuModeButton();
       });
       refreshCpuModeButton();
+    }
+
+    if (btnMode) {
+      btnMode.addEventListener("click", () => {
+        if (busy) return;
+        selectedMode = selectedMode === MODES.WOLF ? MODES.VILLAGER : MODES.WOLF;
+        refreshModeButton();
+      });
+      refreshModeButton();
     }
 
     await newGame();
