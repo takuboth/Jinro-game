@@ -110,6 +110,9 @@ export function makeNewGame(mode = CONFIG.defaultMode) {
     winners: [],
     log: [],
     lastLynchedSlot: null,
+
+    // 噛み予約
+    pendingBites: [],
   };
 
   applyInitialReservations(game);
@@ -189,7 +192,6 @@ function nextAliveIndex(game, from, dir) {
   return null;
 }
 
-// 対象プレイヤー切り替え
 export function getLynchTargetId(game, actorId) {
   if (game.mode === MODES.VILLAGER) return actorId;
   return leftPlayerIndex(game, actorId);
@@ -220,7 +222,13 @@ function nextTurn(game) {
   game.turn = next;
   game.phase = PHASES.LYNCH;
 
+  // 次ターン開始時に前ターンの占い・霊媒結果を表示
   revealPendingReportsForActor(game, game.turn);
+
+  // 守りは毎ターン更新なのでクリア
+  for (const p of game.players) {
+    p.guardIncomingSlot = null;
+  }
 }
 
 function killSlot(game, playerId, slotIndex, reason) {
@@ -292,7 +300,37 @@ function finalizePlayerState(game, player) {
   }
 }
 
+function resolvePendingBites(game) {
+  if (!game.pendingBites.length) return;
+
+  for (const bite of game.pendingBites) {
+    const { actorId, targetId, slotIndex } = bite;
+
+    const target = game.players[targetId];
+    const slot = target?.slots?.[slotIndex];
+
+    if (!target || !target.alive || !slot || slot.dead) continue;
+    if (slot.role === ROLES.WOLF) continue;
+
+    const guardActive =
+      hasAliveRole(target, ROLES.GUARD) &&
+      target.guardIncomingSlot === slotIndex;
+
+    if (guardActive) {
+      logPush(game, `P${actorId + 1} 噛み → P${targetId + 1} S${slotIndex + 1}（ガードで不発）`);
+    } else {
+      killSlot(game, targetId, slotIndex, DEATH.BITE);
+      logPush(game, `P${actorId + 1} 噛み → P${targetId + 1} S${slotIndex + 1}`);
+    }
+  }
+
+  game.pendingBites = [];
+}
+
 function judgeAfterGuard(game) {
+  // 先に予約された噛みを全部解決
+  resolvePendingBites(game);
+
   for (const player of game.players) {
     if (player.alive) finalizePlayerState(game, player);
   }
@@ -501,17 +539,13 @@ export function applyBite(game, actorId, targetId, slotIndex) {
   const slot = target?.slots?.[slotIndex];
   if (!target || !slot || slot.dead || slot.role === ROLES.WOLF) return;
 
-  const guardActive =
-    hasAliveRole(target, ROLES.GUARD) &&
-    target.guardIncomingSlot === slotIndex;
+  game.pendingBites.push({
+    actorId,
+    targetId,
+    slotIndex,
+  });
 
-  if (guardActive) {
-    logPush(game, `P${actorId + 1} 噛み → P${targetId + 1} S${slotIndex + 1}（ガードで不発）`);
-  } else {
-    killSlot(game, targetId, slotIndex, DEATH.BITE);
-    logPush(game, `P${actorId + 1} 噛み → P${targetId + 1} S${slotIndex + 1}`);
-  }
-
+  logPush(game, `P${actorId + 1} 噛み予約 → P${targetId + 1} S${slotIndex + 1}`);
   advancePhase(game);
 }
 
