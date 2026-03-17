@@ -183,7 +183,7 @@ export function deriveViewModel(game, viewAsId) {
 
       slots: p.slots.map((slot, idx) => ({
         idx,
-        roleText: slotRoleText(slot, p.id, viewAsId, revealAll),
+        roleText: slotRoleText(slot, p.id, viewAsId, revealAll, game.mode),
         dead: slot.dead,
         isPublic: slot.isPublic,
         seerA: slot.seerA,
