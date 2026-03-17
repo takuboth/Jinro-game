@@ -116,7 +116,6 @@ export function buildRenderer(root, onPick) {
     if (txtStatus) txtStatus.textContent = vm.status ?? "---";
     if (txtActing) txtActing.textContent = vm.acting ?? "---";
 
-    // View as の人が中央になる順で並べ替え
     const order = Array.isArray(vm.displayOrder) ? vm.displayOrder : vm.players.map(p => p.id);
     for (const id of order) {
       if (playerCards[id]) {
@@ -132,8 +131,8 @@ export function buildRenderer(root, onPick) {
       pc.relation.textContent = vPl.relation || "";
       pc.counts.textContent =
         (vPl.wolfCount == null || vPl.nonWolfCount == null)
-        ? ""
-        : `狼:${vPl.wolfCount} / 非狼:${vPl.nonWolfCount}`;
+          ? ""
+          : `狼:${vPl.wolfCount} / 非狼:${vPl.nonWolfCount}`;
       pc.result.textContent = vPl.resultText || "";
 
       const focus = Array.isArray(vm.focusPlayers) ? vm.focusPlayers : [];
