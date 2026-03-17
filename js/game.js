@@ -415,21 +415,42 @@ function advancePhase(game) {
     game.phase = PHASES.RESERVE_A;
     return;
   }
+
   if (game.phase === PHASES.RESERVE_A) {
     game.phase = PHASES.RESERVE_B;
     return;
   }
-  if (game.phase === PHASES.RESERVE_B) {
-    game.phase = PHASES.BITE;
-    return;
-  }
-  if (game.phase === PHASES.BITE) {
-    game.phase = PHASES.GUARD;
-    return;
-  }
-  if (game.phase === PHASES.GUARD) {
-    judgeAfterGuard(game);
-    if (!game.over) nextTurn(game);
+
+  // ここからモード分岐
+  if (game.mode === MODES.WOLF) {
+    if (game.phase === PHASES.RESERVE_B) {
+      game.phase = PHASES.BITE;
+      return;
+    }
+    if (game.phase === PHASES.BITE) {
+      game.phase = PHASES.GUARD;
+      return;
+    }
+    if (game.phase === PHASES.GUARD) {
+      judgeAfterGuard(game);
+      if (!game.over) nextTurn(game);
+      return;
+    }
+  } else {
+    // 村人モード：狩人 → 噛み の順
+    if (game.phase === PHASES.RESERVE_B) {
+      game.phase = PHASES.GUARD;
+      return;
+    }
+    if (game.phase === PHASES.GUARD) {
+      game.phase = PHASES.BITE;
+      return;
+    }
+    if (game.phase === PHASES.BITE) {
+      judgeAfterGuard(game);
+      if (!game.over) nextTurn(game);
+      return;
+    }
   }
 }
 
