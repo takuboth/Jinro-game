@@ -1,4 +1,4 @@
-import { CONFIG, ROLES, PHASES, MARK, DEATH, PUBLIC_KIND } from "./config.js";
+import { CONFIG, ROLES, PHASES, DEATH, PUBLIC_KIND } from "./config.js";
 import {
   roleChar,
   publicLabel,
@@ -8,12 +8,22 @@ import {
 } from "./utils.js";
 import { leftPlayerIndex, rightPlayerIndex, phaseLabel } from "./game.js";
 
-function relativeLabel(viewAsId, playerId, game) {
+function fixedLeftId(viewAsId) {
+  return (viewAsId - 1 + CONFIG.playerCount) % CONFIG.playerCount;
+}
+
+function fixedRightId(viewAsId) {
+  return (viewAsId + 1) % CONFIG.playerCount;
+}
+
+function fixedDisplayOrder(viewAsId) {
+  return [fixedLeftId(viewAsId), viewAsId, fixedRightId(viewAsId)];
+}
+
+function relativeLabel(viewAsId, playerId) {
   if (playerId === viewAsId) return "自分";
-  const left = leftPlayerIndex(game, viewAsId);
-  const right = rightPlayerIndex(game, viewAsId);
-  if (playerId === left) return "左";
-  if (playerId === right) return "右";
+  if (playerId === fixedLeftId(viewAsId)) return "左";
+  if (playerId === fixedRightId(viewAsId)) return "右";
   return "";
 }
 
@@ -40,15 +50,6 @@ function deathMark(slot) {
   return "NONE";
 }
 
-function uniqueOrder(arr) {
-  const out = [];
-  for (const v of arr) {
-    if (v == null) continue;
-    if (!out.includes(v)) out.push(v);
-  }
-  return out;
-}
-
 export function deriveViewModel(game, viewAsId) {
   const humanId = CONFIG.humanPlayerId;
   const actorId = game.turn;
@@ -67,6 +68,7 @@ export function deriveViewModel(game, viewAsId) {
 
   const focusPlayers = [];
 
+  // 操作対象はゲーム上の生存者基準で計算
   const leftId = actor ? leftPlayerIndex(game, actorId) : null;
   const rightId = actor ? rightPlayerIndex(game, actorId) : null;
 
@@ -152,7 +154,7 @@ export function deriveViewModel(game, viewAsId) {
     return {
       id: p.id,
       name: `P${p.id + 1}`,
-      relation: relativeLabel(viewAsId, p.id, game),
+      relation: relativeLabel(viewAsId, p.id),
       alive: p.alive,
       escaped: p.escaped,
       revealAll,
@@ -177,15 +179,7 @@ export function deriveViewModel(game, viewAsId) {
     };
   });
 
-  const viewLeft = leftPlayerIndex(game, viewAsId);
-  const viewRight = rightPlayerIndex(game, viewAsId);
-
-  const displayOrder = uniqueOrder([
-    viewLeft,
-    viewAsId,
-    viewRight,
-    ...game.players.map(p => p.id),
-  ]);
+  const displayOrder = fixedDisplayOrder(viewAsId);
 
   return {
     game,
