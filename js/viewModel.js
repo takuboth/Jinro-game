@@ -34,7 +34,7 @@ function relativeLabel(viewAsId, playerId) {
   return "";
 }
 
-function slotRoleText(slot, playerId, viewAsId, revealAll) {
+function slotRoleText(slot, playerId, viewAsId, revealAll, mode) {
   if (revealAll) {
     if (slot.isPublic) return fullRevealPublicLabel(slot);
     return roleChar(slot.role);
@@ -44,8 +44,8 @@ function slotRoleText(slot, playerId, viewAsId, revealAll) {
     return publicLabel(slot.publicKind);
   }
 
-  // 両モードとも狼は見える前提
-  if (slot.role === ROLES.WOLF) {
+  // 人狼モードのときだけ、自分の狼を見せる
+  if (mode === "WOLF" && playerId === viewAsId && slot.role === ROLES.WOLF) {
     return "狼";
   }
 
