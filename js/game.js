@@ -81,19 +81,15 @@ function makePlayer(id) {
 
     slots: [...makePublicSlots(), ...makeHiddenSlots()],
 
-    // 占A / 占B の再占い禁止管理
     seenA: makeEmptySeenMap(),
     seenB: makeEmptySeenMap(),
 
-    // 次ターン表示予定
     pendingA: null,
     pendingB: null,
     pendingMedium: null,
 
-    // 右から渡される守り先
     guardIncomingSlot: null,
 
-    // 前回の守り先（連続ガード禁止用）
     lastGuardTargetId: null,
     lastGuardSlot: null,
   };
@@ -142,12 +138,10 @@ function setInitialReservationsForActor(game, actorId) {
     .map((slot, index) => ({ slot, index }))
     .filter(x => !x.slot.dead && !x.slot.isPublic);
 
-  // 偽占い候補: 非公開7枚すべて
   const fakeCandidates = hidden;
   const fakePick = pickRandom(fakeCandidates);
   if (!fakePick) return;
 
-  // 真占い候補: 偽占い先以外、かつ人狼以外
   const trueCandidates = hidden.filter(x =>
     x.index !== fakePick.index &&
     x.slot.role !== ROLES.WOLF
@@ -306,7 +300,6 @@ function revealPendingReportsForActor(game, actorId) {
     }
   }
 
-  // 真占い表示
   if (truePending && trueColor !== null && isLineAlive(leftPlayer, trueKind)) {
     const tgtPlayer = game.players[truePending.targetId];
     const tgtSlot = tgtPlayer?.slots?.[truePending.slotIndex];
@@ -321,7 +314,6 @@ function revealPendingReportsForActor(game, actorId) {
     }
   }
 
-  // 偽占い表示
   if (fakePending && trueColor !== null && isLineAlive(leftPlayer, fakeKind)) {
     const tgtPlayer = game.players[fakePending.targetId];
     const tgtSlot = tgtPlayer?.slots?.[fakePending.slotIndex];
@@ -352,7 +344,6 @@ function revealPendingReportsForActor(game, actorId) {
     }
   }
 
-  // 霊媒結果
   if (actor.pendingMedium && isLineAlive(leftPlayer, PUBLIC_KIND.MEDIUM)) {
     const tgtPlayer = game.players[actor.pendingMedium.targetId];
     const tgtSlot = tgtPlayer?.slots?.[actor.pendingMedium.slotIndex];
