@@ -1,3 +1,8 @@
+export const MODES = {
+  WOLF: "WOLF",
+  VILLAGER: "VILLAGER",
+};
+
 export const ROLES = {
   WOLF: "WOLF",
   SEER: "SEER",
@@ -46,7 +51,8 @@ export const CONFIG = {
   cpuThinkMsMin: 450,
   cpuThinkMsMax: 900,
 
-  // 非公開7枚
+  defaultMode: MODES.WOLF,
+
   hiddenDeck: [
     ROLES.WOLF,
     ROLES.WOLF,
