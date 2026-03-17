@@ -7,11 +7,10 @@ import {
   countAliveNonWolves,
 } from "./utils.js";
 import {
-  leftPlayerIndex,
-  rightPlayerIndex,
   getLynchTargetId,
   getReserveTargetId,
   getGuardTargetId,
+  getBiteTargetId,
   phaseLabel
 } from "./game.js";
 
@@ -45,12 +44,9 @@ function slotRoleText(slot, playerId, viewAsId, revealAll, mode) {
   }
 
   if (slot.role === ROLES.WOLF) {
-    // 人狼モード：自分の狼だけ見える
     if (mode === MODES.WOLF && playerId === viewAsId) {
       return "狼";
     }
-
-    // 村人モード：自分以外の狼だけ見える
     if (mode === MODES.VILLAGER && playerId !== viewAsId) {
       return "狼";
     }
@@ -74,8 +70,7 @@ export function deriveViewModel(game, viewAsId) {
     !game.over &&
     actor &&
     actor.alive &&
-    actorId === humanId &&
-    !(game.mode === MODES.VILLAGER && game.phase === PHASES.BITE)
+    actorId === humanId
   );
 
   const clickable = Array.from({ length: CONFIG.playerCount }, () =>
@@ -87,6 +82,7 @@ export function deriveViewModel(game, viewAsId) {
   const lynchTargetId = actor ? getLynchTargetId(game, actorId) : null;
   const reserveTargetId = actor ? getReserveTargetId(game, actorId) : null;
   const guardTargetId = actor ? getGuardTargetId(game, actorId) : null;
+  const biteTargetId = actor ? getBiteTargetId(game, actorId) : null;
 
   if (humanCanAct) {
     if (game.phase === PHASES.LYNCH) {
@@ -94,8 +90,7 @@ export function deriveViewModel(game, viewAsId) {
     } else if (game.phase === PHASES.RESERVE_A || game.phase === PHASES.RESERVE_B) {
       if (reserveTargetId != null) focusPlayers.push(reserveTargetId);
     } else if (game.phase === PHASES.BITE) {
-      // 村人モードでは humanCanAct false なので来ない
-      focusPlayers.push(actorId);
+      if (biteTargetId != null) focusPlayers.push(biteTargetId);
     } else if (game.phase === PHASES.GUARD) {
       if (guardTargetId != null) focusPlayers.push(guardTargetId);
     }
@@ -135,11 +130,11 @@ export function deriveViewModel(game, viewAsId) {
       }
     }
 
-    if (game.phase === PHASES.BITE && game.mode === MODES.WOLF) {
-      const self = game.players[actorId];
+    if (game.phase === PHASES.BITE && biteTargetId != null) {
+      const target = game.players[biteTargetId];
       for (let i = 0; i < CONFIG.slotCount; i++) {
-        const s = self.slots[i];
-        clickable[actorId][i] = !s.dead && s.role !== ROLES.WOLF;
+        const s = target.slots[i];
+        clickable[biteTargetId][i] = !s.dead && s.role !== ROLES.WOLF;
       }
     }
 
