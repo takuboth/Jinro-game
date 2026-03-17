@@ -44,9 +44,16 @@ function slotRoleText(slot, playerId, viewAsId, revealAll, mode) {
     return publicLabel(slot.publicKind);
   }
 
-  // 人狼モードのときだけ、自分の狼を見せる
-  if (mode === "WOLF" && playerId === viewAsId && slot.role === ROLES.WOLF) {
-    return "狼";
+  if (slot.role === ROLES.WOLF) {
+    // 人狼モード：自分の狼だけ見える
+    if (mode === MODES.WOLF && playerId === viewAsId) {
+      return "狼";
+    }
+
+    // 村人モード：自分以外の狼だけ見える
+    if (mode === MODES.VILLAGER && playerId !== viewAsId) {
+      return "狼";
+    }
   }
 
   return "";
