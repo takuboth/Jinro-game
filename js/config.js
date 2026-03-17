@@ -35,25 +35,18 @@ export const PHASES = {
 };
 
 export const CONFIG = {
+  playerCount: 3,
+  slotCount: 10,
+
   humanPlayerId: 0,
   autoPlayers: true,
-  autoSafetySteps: 200,
+  autoSafetySteps: 100,
 
   cpuOnlineLike: true,
   cpuThinkMsMin: 450,
   cpuThinkMsMax: 900,
 
-  playerCount: 3,
-  slotCount: 10,
-  publicSlotCount: 3,
-  hiddenSlotCount: 7,
-
-  publicLayout: [
-    { index: 0, kind: PUBLIC_KIND.A },
-    { index: 1, kind: PUBLIC_KIND.B },
-    { index: 2, kind: PUBLIC_KIND.MEDIUM },
-  ],
-
+  // 非公開7枚
   hiddenDeck: [
     ROLES.WOLF,
     ROLES.WOLF,
