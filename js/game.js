@@ -640,19 +640,64 @@ export function applyBite(game, actorId, targetId, slotIndex) {
   advancePhase(game);
 }
 
+function resolveGuardSlotIndex(targetPlayer, requestedSlotIndex) {
+  const requested = targetPlayer?.slots?.[requestedSlotIndex];
+  if (!requested || requested.dead) return null;
+
+  // 狩人以外ならそのまま守る
+  if (requested.role !== ROLES.GUARD) {
+    return requestedSlotIndex;
+  }
+
+  // 狩人自身は守れないので、生存している村人へランダム差し替え
+  const villagerCandidates = targetPlayer.slots
+    .map((slot, index) => ({ slot, index }))
+    .filter(x =>
+      !x.slot.dead &&
+      x.slot.role === ROLES.VILLAGER
+    );
+
+  if (!villagerCandidates.length) {
+    return null; // 村人がいなければ守りなし
+  }
+
+  const picked = pickRandom(villagerCandidates);
+  return picked ? picked.index : null;
+}
+
 export function applyGuard(game, actorId, targetId, slotIndex) {
   if (game.over) return;
 
   const actor = game.players[actorId];
   const target = game.players[targetId];
-  const slot = target?.slots?.[slotIndex];
-  if (!target || !slot || slot.dead) return;
+  if (!target) return;
 
-  target.guardIncomingSlot = slotIndex;
+  const resolvedSlotIndex = resolveGuardSlotIndex(target, slotIndex);
+
+  // 村人差し替え先も無い場合は守りなし
+  if (resolvedSlotIndex == null) {
+    target.guardIncomingSlot = null;
+    actor.lastGuardTargetId = targetId;
+    actor.lastGuardSlot = null;
+
+    logPush(game, `P${actorId + 1} 守り設定 → なし`);
+    advancePhase(game);
+    return;
+  }
+
+  target.guardIncomingSlot = resolvedSlotIndex;
   actor.lastGuardTargetId = targetId;
-  actor.lastGuardSlot = slotIndex;
+  actor.lastGuardSlot = resolvedSlotIndex;
 
-  logPush(game, `P${actorId + 1} 守り設定 → P${targetId + 1} S${slotIndex + 1}`);
+  if (resolvedSlotIndex !== slotIndex) {
+    logPush(
+      game,
+      `P${actorId + 1} 守り設定 → P${targetId + 1} S${slotIndex + 1}は狩人のため、P${targetId + 1} S${resolvedSlotIndex + 1}へ変更`
+    );
+  } else {
+    logPush(game, `P${actorId + 1} 守り設定 → P${targetId + 1} S${resolvedSlotIndex + 1}`);
+  }
+
   advancePhase(game);
 }
 
@@ -683,12 +728,20 @@ export function canAbsentOk(game) {
 
   if (game.phase === PHASES.GUARD) {
     if (guardTargetId == null) return true;
+    
     const target = game.players[guardTargetId];
-    const forbidden = actor.lastGuardTargetId === guardTargetId ? actor.lastGuardSlot : null;
-    const cands = target.slots
-      .map((slot, index) => ({ slot, index }))
-      .filter(x => !x.slot.dead && x.index !== forbidden);
-    return cands.length === 0;
+    
+    const canGuardAny = target.slots.some((slot, index) => {
+      if (slot.dead) return false;
+      
+      // 狩人以外は守れる
+      if (slot.role !== ROLES.GUARD) return true;
+      
+      // 狩人を選んだ場合、村人へ差し替え可能なら守れる
+      return target.slots.some(s => !s.dead && s.role === ROLES.VILLAGER);
+    });
+    
+    return !canGuardAny;
   }
 
   return false;
