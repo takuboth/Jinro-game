@@ -380,23 +380,56 @@ function revealPendingReportsForActor(game, actorId) {
   const truePending = pendingByKind[trueKind];
   const fakePending = pendingByKind[fakeKind];
 
+    // 真占いが生きているときだけ真色を有効にする
   let trueColor = null;
-  if (truePending) {
-    const tgtPlayer = game.players[truePending.targetId];
-    const tgtSlot = tgtPlayer?.slots?.[truePending.slotIndex];
-    if (tgtSlot) trueColor = colorFromRole(tgtSlot.role);
-  }
+  const trueLineAlive = isLineAlive(targetPlayer, trueKind);
 
-  if (truePending && trueColor !== null && isLineAlive(targetPlayer, trueKind)) {
+  if (truePending && trueLineAlive) {
     const tgtPlayer = game.players[truePending.targetId];
     const tgtSlot = tgtPlayer?.slots?.[truePending.slotIndex];
     if (tgtSlot) {
+      trueColor = colorFromRole(tgtSlot.role);
+
       if (trueKind === PUBLIC_KIND.A) tgtSlot.seerA = trueColor;
       else tgtSlot.seerB = trueColor;
 
       logPush(
         game,
         `P${actorId + 1} ${trueKind === PUBLIC_KIND.A ? "占A" : "占B"}結果 → P${truePending.targetId + 1} S${truePending.slotIndex + 1} = ${trueColor === MARK.BLACK ? "黒" : "白"}`
+      );
+    }
+  }
+
+  // 偽占い
+  if (fakePending && isLineAlive(targetPlayer, fakeKind)) {
+    const tgtPlayer = game.players[fakePending.targetId];
+    const tgtSlot = tgtPlayer?.slots?.[fakePending.slotIndex];
+
+    if (tgtSlot) {
+      let fakeColor = MARK.WHITE;
+
+      // 真占いが生きているときだけ、真結果依存ロジックを使う
+      if (trueColor !== null) {
+        const opponentBlack =
+          (fakeKind === PUBLIC_KIND.A && tgtSlot.seerB === MARK.BLACK) ||
+          (fakeKind === PUBLIC_KIND.B && tgtSlot.seerA === MARK.BLACK);
+
+        if (opponentBlack) {
+          fakeColor = MARK.WHITE;
+        } else {
+          const same = sameTarget(fakePending, truePending);
+          fakeColor = same
+            ? (trueColor === MARK.BLACK ? MARK.WHITE : MARK.BLACK)
+            : trueColor;
+        }
+      }
+
+      if (fakeKind === PUBLIC_KIND.A) tgtSlot.seerA = fakeColor;
+      else tgtSlot.seerB = fakeColor;
+
+      logPush(
+        game,
+        `P${actorId + 1} ${fakeKind === PUBLIC_KIND.A ? "占A" : "占B"}結果 → P${fakePending.targetId + 1} S${fakePending.slotIndex + 1} = ${fakeColor === MARK.BLACK ? "黒" : "白"}`
       );
     }
   }
