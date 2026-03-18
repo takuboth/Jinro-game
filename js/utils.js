@@ -222,6 +222,36 @@ export function judgeLineTrust(player) {
   };
 }
 
+export function hasSplitWithLiveMedium(player) {
+  if (!isLineAlive(player, PUBLIC_KIND.MEDIUM)) return false;
+
+  return player.slots.some(slot => {
+    const a = slot.seerA;
+    const b = slot.seerB;
+    return (
+      (a === MARK.WHITE && b === MARK.BLACK) ||
+      (a === MARK.BLACK && b === MARK.WHITE)
+    );
+  });
+}
+
+export function hasHighTrustSeer(player) {
+  const trust = judgeLineTrust(player);
+
+  // 確定真、または片黒霊黒などで大きく優勢
+  if (trust.fixedTrue) return true;
+
+  const diff = Math.abs(trust.trustA - trust.trustB);
+  return diff >= 80;
+}
+
+export function getPreferredSeerKind(player) {
+  const trust = judgeLineTrust(player);
+  if (trust.trueLike === "A") return PUBLIC_KIND.A;
+  if (trust.trueLike === "B") return PUBLIC_KIND.B;
+  return null;
+}
+
 export function classifySlotForLynch(slot, trust, mediumAlive = false) {
   const a = slot.seerA;
   const b = slot.seerB;
@@ -364,6 +394,7 @@ function classifyProtectTarget(slot, trust) {
 
   const trueLike = trust.trueLike;
 
+  // 占い
   if (slot.isPublic && (slot.publicKind === PUBLIC_KIND.A || slot.publicKind === PUBLIC_KIND.B)) {
     if (trueLike === "A" && slot.publicKind === PUBLIC_KIND.A) return "SEER_HIGH";
     if (trueLike === "B" && slot.publicKind === PUBLIC_KIND.B) return "SEER_HIGH";
@@ -374,10 +405,12 @@ function classifyProtectTarget(slot, trust) {
     return "SEER_FLAT";
   }
 
+  // 霊媒
   if (slot.isPublic && slot.publicKind === PUBLIC_KIND.MEDIUM) {
     return "MEDIUM";
   }
 
+  // 確定白
   if (aWhite && bWhite) return "CERT_WHITE";
 
   const blackCount = (aBlack ? 1 : 0) + (bBlack ? 1 : 0);
@@ -416,37 +449,141 @@ function existDoubleBlack(players) {
   return false;
 }
 
+function getBitePriorityClasses(player) {
+  // 白黒があり、しかも霊媒が生きてる → 霊媒最優先
+  if (hasSplitWithLiveMedium(player)) {
+    return [
+      "MEDIUM",
+      "SEER_FLAT",
+      "SEER_HIGH",
+      "SEER_LOW",
+      "CERT_WHITE",
+      "HALF_WHITE",
+      "GRAY",
+      "HALF_BLACK",
+      "BLACK",
+    ];
+  }
+
+  // 高信頼占いが立っている → 占い最優先
+  if (hasHighTrustSeer(player)) {
+    return [
+      "SEER_HIGH",
+      "MEDIUM",
+      "SEER_FLAT",
+      "SEER_LOW",
+      "CERT_WHITE",
+      "HALF_WHITE",
+      "GRAY",
+      "HALF_BLACK",
+      "BLACK",
+    ];
+  }
+
+  // 通常時は霊媒 / 占いフラット
+  return Math.random() < 0.5
+    ? [
+        "MEDIUM",
+        "SEER_FLAT",
+        "SEER_HIGH",
+        "SEER_LOW",
+        "CERT_WHITE",
+        "HALF_WHITE",
+        "GRAY",
+        "HALF_BLACK",
+        "BLACK",
+      ]
+    : [
+        "SEER_FLAT",
+        "MEDIUM",
+        "SEER_HIGH",
+        "SEER_LOW",
+        "CERT_WHITE",
+        "HALF_WHITE",
+        "GRAY",
+        "HALF_BLACK",
+        "BLACK",
+      ];
+}
+
+function pickFromTopPriorityOnly(cands, classifyFn, priority) {
+  for (const cls of priority) {
+    const hits = cands.filter(x => classifyFn(x.slot, x) === cls);
+    if (hits.length) {
+      return pickRandom(hits)?.index ?? null;
+    }
+  }
+  return null;
+}
+
+function getGuardPriorityClasses(player) {
+  // 白黒があり、しかも霊媒が生きてる → 霊媒守り最優先
+  if (hasSplitWithLiveMedium(player)) {
+    return [
+      "MEDIUM",
+      "SEER_FLAT",
+      "SEER_HIGH",
+      "SEER_LOW",
+      "CERT_WHITE",
+      "HALF_WHITE",
+      "GRAY",
+      "HALF_BLACK",
+      "BLACK",
+    ];
+  }
+
+  // 高信頼占いが立っている → 占い守り最優先
+  if (hasHighTrustSeer(player)) {
+    return [
+      "SEER_HIGH",
+      "MEDIUM",
+      "SEER_FLAT",
+      "SEER_LOW",
+      "CERT_WHITE",
+      "HALF_WHITE",
+      "GRAY",
+      "HALF_BLACK",
+      "BLACK",
+    ];
+  }
+
+  // 通常時はフラット
+  return Math.random() < 0.5
+    ? [
+        "MEDIUM",
+        "SEER_FLAT",
+        "SEER_HIGH",
+        "SEER_LOW",
+        "CERT_WHITE",
+        "HALF_WHITE",
+        "GRAY",
+        "HALF_BLACK",
+        "BLACK",
+      ]
+    : [
+        "SEER_FLAT",
+        "MEDIUM",
+        "SEER_HIGH",
+        "SEER_LOW",
+        "CERT_WHITE",
+        "HALF_WHITE",
+        "GRAY",
+        "HALF_BLACK",
+        "BLACK",
+      ];
+}
+
 export function pickCpuBiteTarget(targetPlayer, game) {
   const cands = getAliveBiteTargets(targetPlayer);
   if (!cands.length) return null;
 
   const trust = judgeLineTrust(targetPlayer);
-  const mediumTop = lastLynchWasSplit(game) || existDoubleBlack(game.players);
+  const priority = getBitePriorityClasses(targetPlayer);
 
-  const priority = mediumTop
-    ? ["MEDIUM"]
-    : ["SEER_HIGH", "SEER_FLAT", "SEER_LOW", "MEDIUM", "CERT_WHITE", "HALF_WHITE", "GRAY", "HALF_BLACK", "BLACK"];
-
-  if (mediumTop) {
-    return pickByPriorityGroups(
-      cands,
-      (slot) => classifyProtectTarget(slot, trust),
-      priority,
-      false
-    );
-  }
-
-  const top1 = cands.filter(x => classifyProtectTarget(x.slot, trust) === priority[0]);
-  const top2 = cands.filter(x => classifyProtectTarget(x.slot, trust) === priority[1]);
-  const pool = [...top1, ...top2];
-
-  if (pool.length) return pickRandom(pool)?.index ?? null;
-
-  return pickByPriorityGroups(
+  return pickFromTopPriorityOnly(
     cands,
     (slot) => classifyProtectTarget(slot, trust),
-    priority,
-    false
+    priority
   );
 }
 
@@ -455,16 +592,11 @@ export function pickCpuGuardTarget(targetPlayer, game) {
   if (!cands.length) return null;
 
   const trust = judgeLineTrust(targetPlayer);
-  const mediumTop = lastLynchWasSplit(game) || existDoubleBlack(game.players);
+  const priority = getGuardPriorityClasses(targetPlayer);
 
-  const priority = mediumTop
-    ? ["MEDIUM", "SEER_HIGH", "SEER_FLAT", "SEER_LOW", "CERT_WHITE", "HALF_WHITE", "GRAY", "HALF_BLACK", "BLACK"]
-    : ["SEER_HIGH", "SEER_FLAT", "SEER_LOW", "MEDIUM", "CERT_WHITE", "HALF_WHITE", "GRAY", "HALF_BLACK", "BLACK"];
-
-  return pickByPriorityGroups(
+  return pickFromTopPriorityOnly(
     cands,
     (slot) => classifyProtectTarget(slot, trust),
-    priority,
-    false
+    priority
   );
 }
