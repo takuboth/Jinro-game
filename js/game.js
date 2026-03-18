@@ -111,8 +111,8 @@ export function makeNewGame(mode = CONFIG.defaultMode) {
     log: [],
     lastLynchedSlot: null,
 
-    // 噛み予約
     pendingBites: [],
+    roundBiteActors: [],
   };
 
   applyInitialReservations(game);
@@ -192,6 +192,15 @@ function nextAliveIndex(game, from, dir) {
   return null;
 }
 
+function aliveIds(game) {
+  return game.players.filter(p => p.alive).map(p => p.id);
+}
+
+function allAliveActorsReservedBite(game) {
+  const ids = aliveIds(game);
+  return ids.every(id => game.roundBiteActors.includes(id));
+}
+
 export function getLynchTargetId(game, actorId) {
   if (game.mode === MODES.VILLAGER) return actorId;
   return leftPlayerIndex(game, actorId);
@@ -222,12 +231,16 @@ function nextTurn(game) {
   game.turn = next;
   game.phase = PHASES.LYNCH;
 
-  // 次ターン開始時に前ターンの占い・霊媒結果を表示
   revealPendingReportsForActor(game, game.turn);
 
-  // 守りは毎ターン更新なのでクリア
   for (const p of game.players) {
     p.guardIncomingSlot = null;
+  }
+
+  // 新しいラウンド開始
+  if (game.mode === MODES.VILLAGER) {
+    game.pendingBites = [];
+    game.roundBiteActors = [];
   }
 }
 
@@ -264,9 +277,7 @@ function finalizePlayerState(game, player) {
       player.alive = false;
       player.escaped = true;
       clearOnFinish(player);
-      if (!game.winners.includes(player.id)) {
-        game.winners.push(player.id);
-      }
+      if (!game.winners.includes(player.id)) game.winners.push(player.id);
       logPush(game, `P${player.id + 1} 勝ち抜け`);
       return;
     }
@@ -280,14 +291,11 @@ function finalizePlayerState(game, player) {
     return;
   }
 
-  // 村人モード
   if (wolves === 0) {
     player.alive = false;
     player.escaped = true;
     clearOnFinish(player);
-    if (!game.winners.includes(player.id)) {
-      game.winners.push(player.id);
-    }
+    if (!game.winners.includes(player.id)) game.winners.push(player.id);
     logPush(game, `P${player.id + 1} 勝利`);
     return;
   }
@@ -325,10 +333,10 @@ function resolvePendingBites(game) {
   }
 
   game.pendingBites = [];
+  game.roundBiteActors = [];
 }
 
 function judgeAfterGuard(game) {
-  // 先に予約された噛みを全部解決
   resolvePendingBites(game);
 
   for (const player of game.players) {
@@ -361,7 +369,6 @@ function revealPendingReportsForActor(game, actorId) {
   }
 
   const targetPlayer = game.players[targetId];
-
   const trueKind = getTrueLineKind(targetPlayer);
   const fakeKind = getFakeLineKind(targetPlayer);
 
@@ -377,9 +384,7 @@ function revealPendingReportsForActor(game, actorId) {
   if (truePending) {
     const tgtPlayer = game.players[truePending.targetId];
     const tgtSlot = tgtPlayer?.slots?.[truePending.slotIndex];
-    if (tgtSlot) {
-      trueColor = colorFromRole(tgtSlot.role);
-    }
+    if (tgtSlot) trueColor = colorFromRole(tgtSlot.role);
   }
 
   if (truePending && trueColor !== null && isLineAlive(targetPlayer, trueKind)) {
@@ -406,7 +411,6 @@ function revealPendingReportsForActor(game, actorId) {
         (fakeKind === PUBLIC_KIND.B && tgtSlot.seerA === MARK.BLACK);
 
       let fakeColor;
-
       if (opponentBlack) {
         fakeColor = MARK.WHITE;
       } else {
@@ -470,7 +474,6 @@ function advancePhase(game) {
       return;
     }
   } else {
-    // 村人モード：守り → 噛み
     if (game.phase === PHASES.RESERVE_B) {
       game.phase = PHASES.GUARD;
       return;
@@ -480,8 +483,21 @@ function advancePhase(game) {
       return;
     }
     if (game.phase === PHASES.BITE) {
-      judgeAfterGuard(game);
-      if (!game.over) nextTurn(game);
+      // 村人モードは全員が噛み予約するまで次の人へ
+      if (allAliveActorsReservedBite(game)) {
+        judgeAfterGuard(game);
+        if (!game.over) nextTurn(game);
+      } else {
+        const next = nextAliveIndex(game, game.turn, +1);
+        if (next == null) {
+          judgeAfterGuard(game);
+          if (!game.over) nextTurn(game);
+        } else {
+          game.turn = next;
+          game.phase = PHASES.LYNCH;
+          revealPendingReportsForActor(game, game.turn);
+        }
+      }
       return;
     }
   }
@@ -539,11 +555,10 @@ export function applyBite(game, actorId, targetId, slotIndex) {
   const slot = target?.slots?.[slotIndex];
   if (!target || !slot || slot.dead || slot.role === ROLES.WOLF) return;
 
-  game.pendingBites.push({
-    actorId,
-    targetId,
-    slotIndex,
-  });
+  game.pendingBites.push({ actorId, targetId, slotIndex });
+  if (!game.roundBiteActors.includes(actorId)) {
+    game.roundBiteActors.push(actorId);
+  }
 
   logPush(game, `P${actorId + 1} 噛み予約 → P${targetId + 1} S${slotIndex + 1}`);
   advancePhase(game);
