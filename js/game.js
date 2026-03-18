@@ -503,6 +503,31 @@ function advancePhase(game) {
   }
 }
 
+function judgeSoloVillagerAfterLynch(game, actorId) {
+  if (game.mode !== MODES.VILLAGER) return false;
+
+  const alivePlayers = game.players.filter(p => p.alive);
+  if (alivePlayers.length !== 1) return false;
+  if (alivePlayers[0].id !== actorId) return false;
+
+  const player = game.players[actorId];
+  finalizePlayerState(game, player);
+
+  if (!player.alive) {
+    game.over = true;
+    game.phase = PHASES.END;
+    logPush(
+      game,
+      `ゲーム終了 / 勝者: ${
+        game.winners.length ? game.winners.map(id => `P${id + 1}`).join(", ") : "なし"
+      }`
+    );
+    return true;
+  }
+
+  return false;
+}
+
 export function applyLynch(game, actorId, targetId, slotIndex) {
   if (game.over) return;
 
@@ -520,6 +545,12 @@ export function applyLynch(game, actorId, targetId, slotIndex) {
   };
 
   logPush(game, `P${actorId + 1} 吊り → P${targetId + 1} S${slotIndex + 1}`);
+
+  // 村人モードで最後の1人なら、吊り直後に勝敗確認
+  if (judgeSoloVillagerAfterLynch(game, actorId)) {
+    return;
+  }
+
   advancePhase(game);
 }
 
