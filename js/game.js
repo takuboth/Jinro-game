@@ -511,21 +511,33 @@ function judgeSoloVillagerAfterLynch(game, actorId) {
   if (alivePlayers[0].id !== actorId) return false;
 
   const player = game.players[actorId];
-  finalizePlayerState(game, player);
+  const wolves = countAliveWolves(player);
 
-  if (!player.alive) {
-    game.over = true;
-    game.phase = PHASES.END;
-    logPush(
-      game,
-      `ゲーム終了 / 勝者: ${
-        game.winners.length ? game.winners.map(id => `P${id + 1}`).join(", ") : "なし"
-      }`
-    );
-    return true;
+  // ラスト1人の村人モードは、吊り後に狼が0でなければ続行不能なので終了
+  player.alive = false;
+  clearOnFinish(player);
+
+  if (wolves === 0) {
+    player.escaped = true;
+    if (!game.winners.includes(player.id)) {
+      game.winners.push(player.id);
+    }
+    logPush(game, `P${player.id + 1} 勝利`);
+  } else {
+    player.escaped = false;
+    logPush(game, `P${player.id + 1} 敗北`);
   }
 
-  return false;
+  game.over = true;
+  game.phase = PHASES.END;
+  logPush(
+    game,
+    `ゲーム終了 / 勝者: ${
+      game.winners.length ? game.winners.map(id => `P${id + 1}`).join(", ") : "なし"
+    }`
+  );
+
+  return true;
 }
 
 export function applyLynch(game, actorId, targetId, slotIndex) {
