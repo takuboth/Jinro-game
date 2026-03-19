@@ -140,10 +140,9 @@ export function deriveViewModel(game, viewAsId) {
 
     if (game.phase === PHASES.GUARD && guardTargetId != null) {
       const target = game.players[guardTargetId];
-      const forbidden = actor.lastGuardTargetId === guardTargetId ? actor.lastGuardSlot : null;
       for (let i = 0; i < CONFIG.slotCount; i++) {
         const s = target.slots[i];
-        clickable[guardTargetId][i] = !s.dead && i !== forbidden;
+        clickable[guardTargetId][i] = !s.dead;
       }
     }
   }
