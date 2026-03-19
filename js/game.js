@@ -89,9 +89,6 @@ function makePlayer(id) {
     pendingMedium: null,
 
     guardIncomingSlot: null,
-
-    lastGuardTargetId: null,
-    lastGuardSlot: null,
   };
 }
 
