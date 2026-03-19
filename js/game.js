@@ -431,35 +431,6 @@ function revealPendingReportsForActor(game, actorId) {
     }
   }
 
-  if (fakePending && trueColor !== null && isLineAlive(targetPlayer, fakeKind)) {
-    const tgtPlayer = game.players[fakePending.targetId];
-    const tgtSlot = tgtPlayer?.slots?.[fakePending.slotIndex];
-
-    if (tgtSlot) {
-      const opponentBlack =
-        (fakeKind === PUBLIC_KIND.A && tgtSlot.seerB === MARK.BLACK) ||
-        (fakeKind === PUBLIC_KIND.B && tgtSlot.seerA === MARK.BLACK);
-
-      let fakeColor;
-      if (opponentBlack) {
-        fakeColor = MARK.WHITE;
-      } else {
-        const same = sameTarget(fakePending, truePending);
-        fakeColor = same
-          ? (trueColor === MARK.BLACK ? MARK.WHITE : MARK.BLACK)
-          : trueColor;
-      }
-
-      if (fakeKind === PUBLIC_KIND.A) tgtSlot.seerA = fakeColor;
-      else tgtSlot.seerB = fakeColor;
-
-      logPush(
-        game,
-        `P${actorId + 1} ${fakeKind === PUBLIC_KIND.A ? "占A" : "占B"}結果 → P${fakePending.targetId + 1} S${fakePending.slotIndex + 1} = ${fakeColor === MARK.BLACK ? "黒" : "白"}`
-      );
-    }
-  }
-
   if (actor.pendingMedium && isLineAlive(targetPlayer, PUBLIC_KIND.MEDIUM)) {
     const tgtPlayer = game.players[actor.pendingMedium.targetId];
     const tgtSlot = tgtPlayer?.slots?.[actor.pendingMedium.slotIndex];
