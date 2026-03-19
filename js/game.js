@@ -655,7 +655,7 @@ function resolveGuardSlotIndex(targetPlayer, requestedSlotIndex) {
     );
 
   if (!villagerCandidates.length) {
-    return null; // 村人がいなければ守りなし
+    return null;
   }
 
   const picked = pickRandom(villagerCandidates);
@@ -665,26 +665,19 @@ function resolveGuardSlotIndex(targetPlayer, requestedSlotIndex) {
 export function applyGuard(game, actorId, targetId, slotIndex) {
   if (game.over) return;
 
-  const actor = game.players[actorId];
   const target = game.players[targetId];
   if (!target) return;
 
   const resolvedSlotIndex = resolveGuardSlotIndex(target, slotIndex);
 
-  // 村人差し替え先も無い場合は守りなし
   if (resolvedSlotIndex == null) {
     target.guardIncomingSlot = null;
-    actor.lastGuardTargetId = targetId;
-    actor.lastGuardSlot = null;
-
     logPush(game, `P${actorId + 1} 守り設定 → なし`);
     advancePhase(game);
     return;
   }
 
   target.guardIncomingSlot = resolvedSlotIndex;
-  actor.lastGuardTargetId = targetId;
-  actor.lastGuardSlot = resolvedSlotIndex;
 
   if (resolvedSlotIndex !== slotIndex) {
     logPush(
@@ -724,22 +717,22 @@ export function canAbsentOk(game) {
   }
 
   if (game.phase === PHASES.GUARD) {
-    if (guardTargetId == null) return true;
-    
-    const target = game.players[guardTargetId];
-    
-    const canGuardAny = target.slots.some((slot, index) => {
-      if (slot.dead) return false;
-      
-      // 狩人以外は守れる
-      if (slot.role !== ROLES.GUARD) return true;
-      
-      // 狩人を選んだ場合、村人へ差し替え可能なら守れる
-      return target.slots.some(s => !s.dead && s.role === ROLES.VILLAGER);
-    });
-    
-    return !canGuardAny;
-  }
+   if (guardTargetId == null) return true;
+
+   const target = game.players[guardTargetId];
+
+   const canGuardAny = target.slots.some((slot) => {
+     if (slot.dead) return false;
+ 
+     // 狩人以外は守れる
+     if (slot.role !== ROLES.GUARD) return true;
+ 
+     // 狩人を選んだ場合、村人へ差し替え可能なら守れる
+     return target.slots.some(s => !s.dead && s.role === ROLES.VILLAGER);
+   });
+
+   return !canGuardAny;
+ }
 
   return false;
 }
@@ -876,21 +869,9 @@ export function cpuDoOneImmediate(game) {
       return;
     }
 
-    const forbidden = actor.lastGuardTargetId === guardTargetId ? actor.lastGuardSlot : null;
     const target = game.players[guardTargetId];
-
-    let pick = pickCpuGuardTarget(target, game);
-
-    if (pick != null && pick === forbidden) {
-      const candidates = target.slots
-        .map((slot, index) => ({ slot, index }))
-        .filter(x => !x.slot.dead && x.index !== forbidden);
-
-      pick = candidates.length
-        ? candidates[Math.floor(Math.random() * candidates.length)].index
-        : null;
-    }
-
+    const pick = pickCpuGuardTarget(target, game);
+  
     if (pick == null) {
       logPush(game, `CPU P${actorId + 1} 守り設定 → 対象なし`);
       advancePhase(game);
