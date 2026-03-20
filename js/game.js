@@ -78,6 +78,7 @@ function makePlayer(id) {
     id,
     alive: true,
     escaped: false,
+    resultText: "",
 
     slots: [...makePublicSlots(), ...makeHiddenSlots()],
 
@@ -108,9 +109,17 @@ export function makeNewGame(mode = CONFIG.defaultMode) {
     log: [],
     lastLynchedSlot: null,
 
-    // 村人モード用：全員分の噛み予約をためる
     pendingBites: [],
     roundBiteActors: [],
+
+    // タイマン用
+    duelPendingResult: null,
+    // 例:
+    // {
+    //   triggerPlayerId: 0,
+    //   opponentId: 1,
+    //   type: "WIN" | "LOSE"
+    // }
   };
 
   applyInitialReservations(game);
@@ -219,6 +228,10 @@ export function getBiteTargetId(game, actorId) {
   return actorId;
 }
 
+function getOpponentId(game, actorId) {
+  return game.players.find(p => p.id !== actorId)?.id ?? null;
+}
+
 function nextTurn(game) {
   const next = nextAliveIndex(game, game.turn, +1);
   if (next == null) {
@@ -264,46 +277,125 @@ function clearOnFinish(player) {
   player.guardIncomingSlot = null;
 }
 
-function finalizePlayerState(game, player) {
-  if (!player.alive) return;
-
+function getDuelResultState(game, player) {
   const wolves = countAliveWolves(player);
   const nonWolves = countAliveNonWolves(player);
 
   if (game.mode === MODES.WOLF) {
-    if (wolves >= nonWolves && player.slots.some(s => !s.dead)) {
-      player.alive = false;
-      player.escaped = true;
-      clearOnFinish(player);
-      if (!game.winners.includes(player.id)) game.winners.push(player.id);
-      logPush(game, `P${player.id + 1} 勝ち抜け`);
-      return;
+    if (wolves === 0) return "LOSE";
+    if (wolves >= nonWolves && player.slots.some(s => !s.dead)) return "WIN";
+    return "NONE";
+  }
+
+  // 村人モード
+  if (wolves === 0) return "WIN";
+  if (wolves >= nonWolves && player.slots.some(s => !s.dead)) return "LOSE";
+  return "NONE";
+}
+
+function setFinalPlayerResult(player, result) {
+  player.alive = false;
+  player.escaped = result === "WIN";
+  player.resultText = result;
+  clearOnFinish(player);
+}
+
+function finishGameAsDraw(game) {
+  for (const p of game.players) {
+    if (p.alive) {
+      p.alive = false;
+      p.escaped = false;
+      p.resultText = "DRAW";
+      clearOnFinish(p);
+    } else {
+      p.resultText = "DRAW";
+    }
+  }
+
+  game.winners = [];
+  game.over = true;
+  game.phase = PHASES.END;
+  logPush(game, "ゲーム終了 / 結果: DRAW");
+}
+
+function finishGameByPending(game, pending) {
+  const trigger = game.players[pending.triggerPlayerId];
+  const opponent = game.players[pending.opponentId];
+
+  if (pending.type === "WIN") {
+    setFinalPlayerResult(trigger, "WIN");
+    setFinalPlayerResult(opponent, "LOSE");
+    game.winners = [trigger.id];
+    logPush(game, `P${trigger.id + 1} 勝利 / P${opponent.id + 1} 敗北`);
+  } else {
+    setFinalPlayerResult(trigger, "LOSE");
+    setFinalPlayerResult(opponent, "WIN");
+    game.winners = [opponent.id];
+    logPush(game, `P${opponent.id + 1} 勝利 / P${trigger.id + 1} 敗北`);
+  }
+
+  game.over = true;
+  game.phase = PHASES.END;
+  logPush(
+    game,
+    `ゲーム終了 / 勝者: ${game.winners.length ? game.winners.map(id => `P${id + 1}`).join(", ") : "なし"}`
+  );
+}
+
+function resolveDuelPendingOrSet(game) {
+  if (CONFIG.playerCount !== 2) return false;
+
+  const actorId = game.turn;
+  const actor = game.players[actorId];
+  const actorState = getDuelResultState(game, actor);
+
+  // 既に相手側の予約がある → この手番終了時に確定
+  if (game.duelPendingResult) {
+    const pending = game.duelPendingResult;
+
+    if (pending.opponentId !== actorId) {
+      return false;
     }
 
-    if (wolves === 0) {
-      player.alive = false;
-      player.escaped = false;
-      clearOnFinish(player);
-      logPush(game, `P${player.id + 1} リタイア`);
+    if (actorState === pending.type) {
+      finishGameAsDraw(game);
+      return true;
     }
-    return;
+
+    finishGameByPending(game, pending);
+    return true;
   }
 
-  if (wolves === 0) {
-    player.alive = false;
-    player.escaped = true;
-    clearOnFinish(player);
-    if (!game.winners.includes(player.id)) game.winners.push(player.id);
-    logPush(game, `P${player.id + 1} 勝利`);
-    return;
+  // まだ予約が無い → 今回の手番終了時点で WIN/LOSE が出たら予約
+  if (actorState === "WIN" || actorState === "LOSE") {
+    const opponentId = getOpponentId(game, actorId);
+    if (opponentId == null) {
+      // 一応保険
+      if (actorState === "WIN") {
+        setFinalPlayerResult(actor, "WIN");
+        game.winners = [actor.id];
+      } else {
+        setFinalPlayerResult(actor, "LOSE");
+        game.winners = [];
+      }
+      game.over = true;
+      game.phase = PHASES.END;
+      return true;
+    }
+
+    game.duelPendingResult = {
+      triggerPlayerId: actorId,
+      opponentId,
+      type: actorState,
+    };
+
+    logPush(
+      game,
+      `P${actorId + 1} ${actorState === "WIN" ? "勝利条件" : "敗北条件"}成立 / P${opponentId + 1} に最終手番`
+    );
   }
 
-  if (wolves >= nonWolves && player.slots.some(s => !s.dead)) {
-    player.alive = false;
-    player.escaped = false;
-    clearOnFinish(player);
-    logPush(game, `P${player.id + 1} 敗北`);
-  }
+  return false;
 }
 
 function resolvePendingBites(game) {
@@ -334,9 +426,28 @@ function resolvePendingBites(game) {
   game.roundBiteActors = [];
 }
 
+function finalizePlayerState(game, player) {
+  if (!player.alive) return;
+
+  const state = getDuelResultState(game, player);
+  if (state === "NONE") return;
+
+  setFinalPlayerResult(player, state);
+  if (state === "WIN") {
+    if (!game.winners.includes(player.id)) game.winners.push(player.id);
+  }
+}
+
 function judgeAfterGuard(game) {
   resolvePendingBites(game);
 
+  // タイマンは予約判定方式
+  if (CONFIG.playerCount === 2) {
+    if (resolveDuelPendingOrSet(game)) return;
+    return;
+  }
+
+  // 3人以上の従来処理
   for (const player of game.players) {
     if (player.alive) finalizePlayerState(game, player);
   }
@@ -503,6 +614,7 @@ function advancePhase(game) {
 
 function judgeSoloVillagerAfterLynch(game, actorId) {
   if (game.mode !== MODES.VILLAGER) return false;
+  if (CONFIG.playerCount !== 2) return false;
 
   const alivePlayers = game.players.filter(p => p.alive);
   if (alivePlayers.length !== 1) return false;
@@ -516,12 +628,12 @@ function judgeSoloVillagerAfterLynch(game, actorId) {
 
   if (wolves === 0) {
     player.escaped = true;
-    if (!game.winners.includes(player.id)) {
-      game.winners.push(player.id);
-    }
+    player.resultText = "WIN";
+    if (!game.winners.includes(player.id)) game.winners.push(player.id);
     logPush(game, `P${player.id + 1} 勝利`);
   } else {
     player.escaped = false;
+    player.resultText = "LOSE";
     logPush(game, `P${player.id + 1} 敗北`);
   }
 
