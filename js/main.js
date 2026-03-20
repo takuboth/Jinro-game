@@ -52,6 +52,19 @@ async function boot() {
     const btnCpuMode = root.querySelector("#btnCpuMode");
     const btnMode = root.querySelector("#btnMode");
 
+    function rebuildViewAsOptions() {
+      if (!selViewAs) return;
+
+      selViewAs.innerHTML = "";
+      for (let i = 0; i < CONFIG.playerCount; i++) {
+        const opt = document.createElement("option");
+        opt.value = String(i);
+        opt.textContent = `P${i + 1}`;
+        selViewAs.appendChild(opt);
+      }
+      selViewAs.value = String(viewAsId);
+    }
+
     function autoSkipHumanReserveIfNoChoice() {
       if (!game || game.over) return false;
       if (game.turn !== CONFIG.humanPlayerId) return false;
@@ -101,7 +114,10 @@ async function boot() {
       const vm = deriveViewModel(game, viewAsId);
       if (customStatus) vm.status = customStatus;
       renderer.update(vm);
-      btnAbsentOk.disabled = !game || !canAbsentOk(game);
+
+      if (btnAbsentOk) {
+        btnAbsentOk.disabled = !game || !canAbsentOk(game);
+      }
     }
 
     function renderThinkingStatus() {
@@ -152,7 +168,10 @@ async function boot() {
       try {
         game = makeNewGame(selectedMode);
         viewAsId = CONFIG.humanPlayerId;
+
+        rebuildViewAsOptions();
         if (selViewAs) selViewAs.value = String(viewAsId);
+
         render();
 
         while (autoSkipHumanReserveIfNoChoice()) {
@@ -172,39 +191,45 @@ async function boot() {
       }
     }
 
-    btnNew.addEventListener("click", async () => {
-      await newGame();
-    });
+    if (btnNew) {
+      btnNew.addEventListener("click", async () => {
+        await newGame();
+      });
+    }
 
-    selViewAs.addEventListener("change", () => {
-      if (!game) return;
-      viewAsId = Number(selViewAs.value);
-      render();
-    });
-
-    btnAbsentOk.addEventListener("click", async () => {
-      if (busy || !game) return;
-      busy = true;
-      try {
-        doAbsentOk(game);
+    if (selViewAs) {
+      selViewAs.addEventListener("change", () => {
+        if (!game) return;
+        viewAsId = Number(selViewAs.value);
         render();
+      });
+    }
 
-        while (autoSkipHumanReserveIfNoChoice()) {
+    if (btnAbsentOk) {
+      btnAbsentOk.addEventListener("click", async () => {
+        if (busy || !game) return;
+        busy = true;
+        try {
+          doAbsentOk(game);
           render();
-        }
 
-        await runCpuTurnsWithMode();
-        render();
+          while (autoSkipHumanReserveIfNoChoice()) {
+            render();
+          }
 
-        while (autoSkipHumanReserveIfNoChoice()) {
-          render();
           await runCpuTurnsWithMode();
           render();
+
+          while (autoSkipHumanReserveIfNoChoice()) {
+            render();
+            await runCpuTurnsWithMode();
+            render();
+          }
+        } finally {
+          busy = false;
         }
-      } finally {
-        busy = false;
-      }
-    });
+      });
+    }
 
     if (btnCpuMode) {
       btnCpuMode.addEventListener("click", () => {
@@ -224,6 +249,7 @@ async function boot() {
       refreshModeButton();
     }
 
+    rebuildViewAsOptions();
     await newGame();
 
   } catch (thrown) {
