@@ -108,6 +108,7 @@ export function makeNewGame(mode = CONFIG.defaultMode) {
     log: [],
     lastLynchedSlot: null,
 
+    // 村人モード用：全員分の噛み予約をためる
     pendingBites: [],
     roundBiteActors: [],
   };
@@ -225,6 +226,7 @@ function nextTurn(game) {
     game.phase = PHASES.END;
     return;
   }
+
   game.turn = next;
   game.phase = PHASES.LYNCH;
 
@@ -234,7 +236,6 @@ function nextTurn(game) {
     p.guardIncomingSlot = null;
   }
 
-  // 新しいラウンド開始
   if (game.mode === MODES.VILLAGER) {
     game.pendingBites = [];
     game.roundBiteActors = [];
@@ -377,7 +378,6 @@ function revealPendingReportsForActor(game, actorId) {
   const truePending = pendingByKind[trueKind];
   const fakePending = pendingByKind[fakeKind];
 
-    // 真占いが生きているときだけ真色を有効にする
   let trueColor = null;
   const trueLineAlive = isLineAlive(targetPlayer, trueKind);
 
@@ -397,7 +397,6 @@ function revealPendingReportsForActor(game, actorId) {
     }
   }
 
-  // 偽占い
   if (fakePending && isLineAlive(targetPlayer, fakeKind)) {
     const tgtPlayer = game.players[fakePending.targetId];
     const tgtSlot = tgtPlayer?.slots?.[fakePending.slotIndex];
@@ -405,7 +404,6 @@ function revealPendingReportsForActor(game, actorId) {
     if (tgtSlot) {
       let fakeColor = MARK.WHITE;
 
-      // 真占いが生きているときだけ、真結果依存ロジックを使う
       if (trueColor !== null) {
         const opponentBlack =
           (fakeKind === PUBLIC_KIND.A && tgtSlot.seerB === MARK.BLACK) ||
@@ -484,7 +482,6 @@ function advancePhase(game) {
       return;
     }
     if (game.phase === PHASES.BITE) {
-      // 村人モードは全員が噛み予約するまで次の人へ
       if (allAliveActorsReservedBite(game)) {
         judgeAfterGuard(game);
         if (!game.over) nextTurn(game);
@@ -514,7 +511,6 @@ function judgeSoloVillagerAfterLynch(game, actorId) {
   const player = game.players[actorId];
   const wolves = countAliveWolves(player);
 
-  // ラスト1人の村人モードは、吊り後に狼が0でなければ続行不能なので終了
   player.alive = false;
   clearOnFinish(player);
 
@@ -559,7 +555,6 @@ export function applyLynch(game, actorId, targetId, slotIndex) {
 
   logPush(game, `P${actorId + 1} 吊り → P${targetId + 1} S${slotIndex + 1}`);
 
-  // 村人モードで最後の1人なら、吊り直後に勝敗確認
   if (judgeSoloVillagerAfterLynch(game, actorId)) {
     return;
   }
@@ -612,12 +607,10 @@ function resolveGuardSlotIndex(targetPlayer, requestedSlotIndex) {
   const requested = targetPlayer?.slots?.[requestedSlotIndex];
   if (!requested || requested.dead) return null;
 
-  // 狩人以外ならそのまま守る
   if (requested.role !== ROLES.GUARD) {
     return requestedSlotIndex;
   }
 
-  // 狩人自身は守れないので、生存している村人へランダム差し替え
   const villagerCandidates = targetPlayer.slots
     .map((slot, index) => ({ slot, index }))
     .filter(x =>
@@ -688,22 +681,17 @@ export function canAbsentOk(game) {
   }
 
   if (game.phase === PHASES.GUARD) {
-   if (guardTargetId == null) return true;
+    if (guardTargetId == null) return true;
 
-   const target = game.players[guardTargetId];
+    const target = game.players[guardTargetId];
+    const canGuardAny = target.slots.some((slot) => {
+      if (slot.dead) return false;
+      if (slot.role !== ROLES.GUARD) return true;
+      return target.slots.some(s => !s.dead && s.role === ROLES.VILLAGER);
+    });
 
-   const canGuardAny = target.slots.some((slot) => {
-     if (slot.dead) return false;
- 
-     // 狩人以外は守れる
-     if (slot.role !== ROLES.GUARD) return true;
- 
-     // 狩人を選んだ場合、村人へ差し替え可能なら守れる
-     return target.slots.some(s => !s.dead && s.role === ROLES.VILLAGER);
-   });
-
-   return !canGuardAny;
- }
+    return !canGuardAny;
+  }
 
   return false;
 }
@@ -842,7 +830,7 @@ export function cpuDoOneImmediate(game) {
 
     const target = game.players[guardTargetId];
     const pick = pickCpuGuardTarget(target, game);
-  
+
     if (pick == null) {
       logPush(game, `CPU P${actorId + 1} 守り設定 → 対象なし`);
       advancePhase(game);
