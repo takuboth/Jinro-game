@@ -158,6 +158,13 @@ export function deriveViewModel(game, viewAsId) {
   const players = game.players.map((p) => {
     const revealAll = !p.alive || game.over;
 
+    let resultText = "";
+    if (typeof p.resultText === "string" && p.resultText) {
+      resultText = p.resultText;
+    } else if (!p.alive) {
+      resultText = p.escaped ? "WIN" : "LOSE";
+    }
+
     return {
       id: p.id,
       name: `P${p.id + 1}`,
@@ -166,7 +173,7 @@ export function deriveViewModel(game, viewAsId) {
       escaped: p.escaped,
       revealAll,
 
-      resultText: !p.alive ? (p.escaped ? "WIN" : "LOSE") : "",
+      resultText,
       wolfCount: null,
       nonWolfCount: null,
 
