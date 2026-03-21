@@ -221,8 +221,9 @@ export function getReserveTargetId(game, actorId) {
   return leftPlayerIndex(game, actorId);
 }
 
-// タイマンは「相手を守る」
+// 村人モードは自分を守る / 人狼モードは相手を守る
 export function getGuardTargetId(game, actorId) {
+  if (game.mode === MODES.VILLAGER) return actorId;
   return rightPlayerIndex(game, actorId);
 }
 
@@ -248,7 +249,6 @@ function nextTurn(game) {
 
   revealPendingReportsForActor(game, game.turn);
 
-  // 新ラウンド開始時に解決済み守りと予約をクリア
   for (const p of game.players) {
     p.guardIncomingSlot = null;
   }
@@ -393,8 +393,30 @@ function resolveDuelPendingOrSet(game) {
   return false;
 }
 
+function resolveGuardSlotIndex(targetPlayer, requestedSlotIndex) {
+  const requested = targetPlayer?.slots?.[requestedSlotIndex];
+  if (!requested || requested.dead) return null;
+
+  if (requested.role !== ROLES.GUARD) {
+    return requestedSlotIndex;
+  }
+
+  const villagerCandidates = targetPlayer.slots
+    .map((slot, index) => ({ slot, index }))
+    .filter(x =>
+      !x.slot.dead &&
+      x.slot.role === ROLES.VILLAGER
+    );
+
+  if (!villagerCandidates.length) {
+    return null;
+  }
+
+  const picked = pickRandom(villagerCandidates);
+  return picked ? picked.index : null;
+}
+
 function resolvePendingGuards(game) {
-  // 先に全部リセット
   for (const p of game.players) {
     p.guardIncomingSlot = null;
   }
@@ -606,7 +628,6 @@ function advancePhase(game) {
     return;
   }
   if (game.phase === PHASES.BITE) {
-    // 両者のガード予約・噛み予約が揃うまで次の人へ
     if (allAliveActorsReservedGuard(game) && allAliveActorsReservedBite(game)) {
       judgeAfterResolution(game);
       if (!game.over) nextTurn(game);
@@ -712,6 +733,22 @@ export function applyReserve(game, actorId, lineKind, targetId, slotIndex) {
   advancePhase(game);
 }
 
+export function applyGuard(game, actorId, targetId, slotIndex) {
+  if (game.over) return;
+
+  const target = game.players[targetId];
+  const requested = target?.slots?.[slotIndex];
+  if (!target || !requested || requested.dead) return;
+
+  game.pendingGuards.push({ actorId, targetId, slotIndex });
+  if (!game.roundGuardActors.includes(actorId)) {
+    game.roundGuardActors.push(actorId);
+  }
+
+  logPush(game, `P${actorId + 1} 守り予約 → P${targetId + 1} S${slotIndex + 1}`);
+  advancePhase(game);
+}
+
 export function applyBite(game, actorId, targetId, slotIndex) {
   if (game.over) return;
 
@@ -728,47 +765,6 @@ export function applyBite(game, actorId, targetId, slotIndex) {
   advancePhase(game);
 }
 
-function resolveGuardSlotIndex(targetPlayer, requestedSlotIndex) {
-  const requested = targetPlayer?.slots?.[requestedSlotIndex];
-  if (!requested || requested.dead) return null;
-
-  if (requested.role !== ROLES.GUARD) {
-    return requestedSlotIndex;
-  }
-
-  const villagerCandidates = targetPlayer.slots
-    .map((slot, index) => ({ slot, index }))
-    .filter(x =>
-      !x.slot.dead &&
-      x.slot.role === ROLES.VILLAGER
-    );
-
-  if (!villagerCandidates.length) {
-    return null;
-  }
-
-  const picked = pickRandom(villagerCandidates);
-  return picked ? picked.index : null;
-}
-
-export function applyGuard(game, actorId, targetId, slotIndex) {
-  if (game.over) return;
-
-  const target = game.players[targetId];
-  if (!target) return;
-
-  const requested = target?.slots?.[slotIndex];
-  if (!requested || requested.dead) return;
-
-  game.pendingGuards.push({ actorId, targetId, slotIndex });
-  if (!game.roundGuardActors.includes(actorId)) {
-    game.roundGuardActors.push(actorId);
-  }
-
-  logPush(game, `P${actorId + 1} 守り予約 → P${targetId + 1} S${slotIndex + 1}`);
-  advancePhase(game);
-}
-
 export function canAbsentOk(game) {
   if (game.over) return false;
   if (game.turn !== CONFIG.humanPlayerId) return false;
@@ -779,6 +775,7 @@ export function canAbsentOk(game) {
 
   const reserveTargetId = getReserveTargetId(game, actorId);
   const guardTargetId = getGuardTargetId(game, actorId);
+  const biteTargetId = getBiteTargetId(game, actorId);
 
   if (game.phase === PHASES.RESERVE_A) {
     if (reserveTargetId == null) return true;
@@ -807,6 +804,15 @@ export function canAbsentOk(game) {
     return !canGuardAny;
   }
 
+  if (game.phase === PHASES.BITE) {
+    if (biteTargetId == null) return true;
+
+    const target = game.players[biteTargetId];
+    const canBiteAny = target.slots.some(slot => !slot.dead && slot.role !== ROLES.WOLF);
+
+    return !canBiteAny;
+  }
+
   return false;
 }
 
@@ -831,6 +837,15 @@ export function doAbsentOk(game) {
     logPush(game, `P${actorId + 1} 守り予約 → 対象なしでスキップ`);
     if (!game.roundGuardActors.includes(actorId)) {
       game.roundGuardActors.push(actorId);
+    }
+    advancePhase(game);
+    return;
+  }
+
+  if (game.phase === PHASES.BITE) {
+    logPush(game, `P${actorId + 1} 噛み予約 → 対象なしでスキップ`);
+    if (!game.roundBiteActors.includes(actorId)) {
+      game.roundBiteActors.push(actorId);
     }
     advancePhase(game);
   }
@@ -924,6 +939,7 @@ export function cpuDoOneImmediate(game) {
 
   if (game.phase === PHASES.GUARD) {
     if (guardTargetId == null) {
+      logPush(game, `CPU P${actorId + 1} 守り予約 → 対象なし`);
       if (!game.roundGuardActors.includes(actorId)) {
         game.roundGuardActors.push(actorId);
       }
@@ -949,17 +965,24 @@ export function cpuDoOneImmediate(game) {
 
   if (game.phase === PHASES.BITE) {
     if (biteTargetId == null) {
-      logPush(game, `CPU P${actorId + 1} 噛み → 対象なし`);
+      logPush(game, `CPU P${actorId + 1} 噛み予約 → 対象なし`);
+      if (!game.roundBiteActors.includes(actorId)) {
+        game.roundBiteActors.push(actorId);
+      }
       advancePhase(game);
       return;
     }
 
     const pick = pickCpuBiteTarget(game.players[biteTargetId], game);
     if (pick == null) {
-      logPush(game, `CPU P${actorId + 1} 噛み → 対象なし`);
+      logPush(game, `CPU P${actorId + 1} 噛み予約 → 対象なし`);
+      if (!game.roundBiteActors.includes(actorId)) {
+        game.roundBiteActors.push(actorId);
+      }
       advancePhase(game);
       return;
     }
+
     applyBite(game, actorId, biteTargetId, pick);
     return;
   }
