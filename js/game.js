@@ -118,6 +118,12 @@ export function makeNewGame(mode = CONFIG.defaultMode) {
 
     // タイマン用
     duelPendingResult: null,
+    // {
+    //   triggerPlayerId,
+    //   opponentId,
+    //   type: "WIN" | "LOSE",
+    //   settleTurnPlayerId
+    // }
   };
 
   applyInitialReservations(game);
@@ -340,76 +346,6 @@ function finishGameByPending(game, pending) {
   );
 }
 
-function resolveDuelPendingOrSet(game) {
-  if (CONFIG.playerCount !== 2) return false;
-
-  const actorId = game.turn;
-  const opponentId = getOpponentId(game, actorId);
-  if (opponentId == null) return false;
-
-  const actor = game.players[actorId];
-  const opponent = game.players[opponentId];
-
-  const actorState = getDuelResultState(game, actor);
-  const opponentState = getDuelResultState(game, opponent);
-
-  // すでに予約がある場合：
-  // 今回は相手の最終手番のはずなので、両者状態を見て確定
-  if (game.duelPendingResult) {
-    const pending = game.duelPendingResult;
-
-    if (pending.opponentId !== actorId) {
-      return false;
-    }
-
-    // 予約種別と同じ状態を相手も満たしたらDRAW
-    if (actorState === pending.type) {
-      finishGameAsDraw(game);
-      return true;
-    }
-
-    finishGameByPending(game, pending);
-    return true;
-  }
-
-  // まだ予約がない場合は、この手番終了時点の結果から予約を作る
-  // 優先順位：
-  // 1) 自分がWIN/LOSEならそれを採用
-  // 2) 相手がWIN/LOSEなら、その反対結果を自分側の予約として採用
-
-  if (actorState === "WIN" || actorState === "LOSE") {
-    game.duelPendingResult = {
-      triggerPlayerId: actorId,
-      opponentId,
-      type: actorState,
-    };
-
-    logPush(
-      game,
-      `P${actorId + 1} ${actorState === "WIN" ? "勝利条件" : "敗北条件"}成立 / P${opponentId + 1} に最終手番`
-    );
-    return false;
-  }
-
-  if (opponentState === "WIN" || opponentState === "LOSE") {
-    const mirroredType = opponentState === "WIN" ? "LOSE" : "WIN";
-
-    game.duelPendingResult = {
-      triggerPlayerId: actorId,
-      opponentId,
-      type: mirroredType,
-    };
-
-    logPush(
-      game,
-      `P${opponentId + 1} ${opponentState === "WIN" ? "勝利条件" : "敗北条件"}成立 / P${opponentId + 1} に最終手番`
-    );
-    return false;
-  }
-
-  return false;
-}
-
 function resolveGuardSlotIndex(targetPlayer, requestedSlotIndex) {
   const requested = targetPlayer?.slots?.[requestedSlotIndex];
   if (!requested || requested.dead) return null;
@@ -495,6 +431,63 @@ function resolvePendingBites(game) {
   game.roundBiteActors = [];
 }
 
+// ラウンド解決後にだけ勝敗を見る
+function checkDuelResultAfterResolution(game) {
+  if (CONFIG.playerCount !== 2) return false;
+
+  const p0 = game.players[0];
+  const p1 = game.players[1];
+  const s0 = getDuelResultState(game, p0);
+  const s1 = getDuelResultState(game, p1);
+
+  // 既に予約があるなら、今回で最終確定
+  if (game.duelPendingResult) {
+    const pending = game.duelPendingResult;
+    const settlePlayer = game.players[pending.settleTurnPlayerId];
+    const settleState = getDuelResultState(game, settlePlayer);
+
+    if (settleState === pending.type) {
+      finishGameAsDraw(game);
+      return true;
+    }
+
+    finishGameByPending(game, pending);
+    return true;
+  }
+
+  // 新規予約
+  // 自分と相手のどちらか一方でも WIN/LOSE が出たら予約
+  // 両者同時に同種ならその場でDRAW
+  if (s0 !== "NONE" && s0 === s1) {
+    finishGameAsDraw(game);
+    return true;
+  }
+
+  if (s0 !== "NONE") {
+    game.duelPendingResult = {
+      triggerPlayerId: 0,
+      opponentId: 1,
+      type: s0,
+      settleTurnPlayerId: 1,
+    };
+    logPush(game, `P1 ${s0 === "WIN" ? "勝利条件" : "敗北条件"}成立 / P2 に最終手番`);
+    return false;
+  }
+
+  if (s1 !== "NONE") {
+    game.duelPendingResult = {
+      triggerPlayerId: 1,
+      opponentId: 0,
+      type: s1,
+      settleTurnPlayerId: 0,
+    };
+    logPush(game, `P2 ${s1 === "WIN" ? "勝利条件" : "敗北条件"}成立 / P1 に最終手番`);
+    return false;
+  }
+
+  return false;
+}
+
 function finalizePlayerState(game, player) {
   if (!player.alive) return;
 
@@ -512,7 +505,7 @@ function judgeAfterResolution(game) {
   resolvePendingBites(game);
 
   if (CONFIG.playerCount === 2) {
-    if (resolveDuelPendingOrSet(game)) return;
+    if (checkDuelResultAfterResolution(game)) return;
     return;
   }
 
@@ -663,43 +656,6 @@ function advancePhase(game) {
   }
 }
 
-function judgeSoloVillagerAfterLynch(game, actorId) {
-  if (game.mode !== MODES.VILLAGER) return false;
-  if (CONFIG.playerCount !== 2) return false;
-
-  const alivePlayers = game.players.filter(p => p.alive);
-  if (alivePlayers.length !== 1) return false;
-  if (alivePlayers[0].id !== actorId) return false;
-
-  const player = game.players[actorId];
-  const wolves = countAliveWolves(player);
-
-  player.alive = false;
-  clearOnFinish(player);
-
-  if (wolves === 0) {
-    player.escaped = true;
-    player.resultText = "WIN";
-    if (!game.winners.includes(player.id)) game.winners.push(player.id);
-    logPush(game, `P${player.id + 1} 勝利`);
-  } else {
-    player.escaped = false;
-    player.resultText = "LOSE";
-    logPush(game, `P${player.id + 1} 敗北`);
-  }
-
-  game.over = true;
-  game.phase = PHASES.END;
-  logPush(
-    game,
-    `ゲーム終了 / 勝者: ${
-      game.winners.length ? game.winners.map(id => `P${id + 1}`).join(", ") : "なし"
-    }`
-  );
-
-  return true;
-}
-
 export function applyLynch(game, actorId, targetId, slotIndex) {
   if (game.over) return;
 
@@ -717,11 +673,6 @@ export function applyLynch(game, actorId, targetId, slotIndex) {
   };
 
   logPush(game, `P${actorId + 1} 吊り → P${targetId + 1} S${slotIndex + 1}`);
-
-  if (judgeSoloVillagerAfterLynch(game, actorId)) {
-    return;
-  }
-
   advancePhase(game);
 }
 
