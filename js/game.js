@@ -344,9 +344,17 @@ function resolveDuelPendingOrSet(game) {
   if (CONFIG.playerCount !== 2) return false;
 
   const actorId = game.turn;
-  const actor = game.players[actorId];
-  const actorState = getDuelResultState(game, actor);
+  const opponentId = getOpponentId(game, actorId);
+  if (opponentId == null) return false;
 
+  const actor = game.players[actorId];
+  const opponent = game.players[opponentId];
+
+  const actorState = getDuelResultState(game, actor);
+  const opponentState = getDuelResultState(game, opponent);
+
+  // すでに予約がある場合：
+  // 今回は相手の最終手番のはずなので、両者状態を見て確定
   if (game.duelPendingResult) {
     const pending = game.duelPendingResult;
 
@@ -354,6 +362,7 @@ function resolveDuelPendingOrSet(game) {
       return false;
     }
 
+    // 予約種別と同じ状態を相手も満たしたらDRAW
     if (actorState === pending.type) {
       finishGameAsDraw(game);
       return true;
@@ -363,21 +372,12 @@ function resolveDuelPendingOrSet(game) {
     return true;
   }
 
-  if (actorState === "WIN" || actorState === "LOSE") {
-    const opponentId = getOpponentId(game, actorId);
-    if (opponentId == null) {
-      if (actorState === "WIN") {
-        setFinalPlayerResult(actor, "WIN");
-        game.winners = [actor.id];
-      } else {
-        setFinalPlayerResult(actor, "LOSE");
-        game.winners = [];
-      }
-      game.over = true;
-      game.phase = PHASES.END;
-      return true;
-    }
+  // まだ予約がない場合は、この手番終了時点の結果から予約を作る
+  // 優先順位：
+  // 1) 自分がWIN/LOSEならそれを採用
+  // 2) 相手がWIN/LOSEなら、その反対結果を自分側の予約として採用
 
+  if (actorState === "WIN" || actorState === "LOSE") {
     game.duelPendingResult = {
       triggerPlayerId: actorId,
       opponentId,
@@ -388,6 +388,23 @@ function resolveDuelPendingOrSet(game) {
       game,
       `P${actorId + 1} ${actorState === "WIN" ? "勝利条件" : "敗北条件"}成立 / P${opponentId + 1} に最終手番`
     );
+    return false;
+  }
+
+  if (opponentState === "WIN" || opponentState === "LOSE") {
+    const mirroredType = opponentState === "WIN" ? "LOSE" : "WIN";
+
+    game.duelPendingResult = {
+      triggerPlayerId: actorId,
+      opponentId,
+      type: mirroredType,
+    };
+
+    logPush(
+      game,
+      `P${opponentId + 1} ${opponentState === "WIN" ? "勝利条件" : "敗北条件"}成立 / P${opponentId + 1} に最終手番`
+    );
+    return false;
   }
 
   return false;
