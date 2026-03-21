@@ -89,6 +89,7 @@ function makePlayer(id) {
     pendingB: null,
     pendingMedium: null,
 
+    // 解決済みの守り
     guardIncomingSlot: null,
   };
 }
@@ -109,17 +110,14 @@ export function makeNewGame(mode = CONFIG.defaultMode) {
     log: [],
     lastLynchedSlot: null,
 
+    // 予約
+    pendingGuards: [],
+    roundGuardActors: [],
     pendingBites: [],
     roundBiteActors: [],
 
     // タイマン用
     duelPendingResult: null,
-    // 例:
-    // {
-    //   triggerPlayerId: 0,
-    //   opponentId: 1,
-    //   type: "WIN" | "LOSE"
-    // }
   };
 
   applyInitialReservations(game);
@@ -203,6 +201,11 @@ function aliveIds(game) {
   return game.players.filter(p => p.alive).map(p => p.id);
 }
 
+function allAliveActorsReservedGuard(game) {
+  const ids = aliveIds(game);
+  return ids.every(id => game.roundGuardActors.includes(id));
+}
+
 function allAliveActorsReservedBite(game) {
   const ids = aliveIds(game);
   return ids.every(id => game.roundBiteActors.includes(id));
@@ -218,8 +221,8 @@ export function getReserveTargetId(game, actorId) {
   return leftPlayerIndex(game, actorId);
 }
 
+// タイマンは「相手を守る」
 export function getGuardTargetId(game, actorId) {
-  if (game.mode === MODES.VILLAGER) return actorId;
   return rightPlayerIndex(game, actorId);
 }
 
@@ -245,14 +248,14 @@ function nextTurn(game) {
 
   revealPendingReportsForActor(game, game.turn);
 
+  // 新ラウンド開始時に解決済み守りと予約をクリア
   for (const p of game.players) {
     p.guardIncomingSlot = null;
   }
-
-  if (game.mode === MODES.VILLAGER) {
-    game.pendingBites = [];
-    game.roundBiteActors = [];
-  }
+  game.pendingGuards = [];
+  game.roundGuardActors = [];
+  game.pendingBites = [];
+  game.roundBiteActors = [];
 }
 
 function killSlot(game, playerId, slotIndex, reason) {
@@ -287,7 +290,6 @@ function getDuelResultState(game, player) {
     return "NONE";
   }
 
-  // 村人モード
   if (wolves === 0) return "WIN";
   if (wolves >= nonWolves && player.slots.some(s => !s.dead)) return "LOSE";
   return "NONE";
@@ -302,14 +304,10 @@ function setFinalPlayerResult(player, result) {
 
 function finishGameAsDraw(game) {
   for (const p of game.players) {
-    if (p.alive) {
-      p.alive = false;
-      p.escaped = false;
-      p.resultText = "DRAW";
-      clearOnFinish(p);
-    } else {
-      p.resultText = "DRAW";
-    }
+    p.alive = false;
+    p.escaped = false;
+    p.resultText = "DRAW";
+    clearOnFinish(p);
   }
 
   game.winners = [];
@@ -349,7 +347,6 @@ function resolveDuelPendingOrSet(game) {
   const actor = game.players[actorId];
   const actorState = getDuelResultState(game, actor);
 
-  // 既に相手側の予約がある → この手番終了時に確定
   if (game.duelPendingResult) {
     const pending = game.duelPendingResult;
 
@@ -366,11 +363,9 @@ function resolveDuelPendingOrSet(game) {
     return true;
   }
 
-  // まだ予約が無い → 今回の手番終了時点で WIN/LOSE が出たら予約
   if (actorState === "WIN" || actorState === "LOSE") {
     const opponentId = getOpponentId(game, actorId);
     if (opponentId == null) {
-      // 一応保険
       if (actorState === "WIN") {
         setFinalPlayerResult(actor, "WIN");
         game.winners = [actor.id];
@@ -396,6 +391,41 @@ function resolveDuelPendingOrSet(game) {
   }
 
   return false;
+}
+
+function resolvePendingGuards(game) {
+  // 先に全部リセット
+  for (const p of game.players) {
+    p.guardIncomingSlot = null;
+  }
+
+  if (!game.pendingGuards.length) return;
+
+  for (const guard of game.pendingGuards) {
+    const { actorId, targetId, slotIndex } = guard;
+    const target = game.players[targetId];
+    if (!target || !target.alive) continue;
+
+    const resolvedSlotIndex = resolveGuardSlotIndex(target, slotIndex);
+    if (resolvedSlotIndex == null) {
+      logPush(game, `P${actorId + 1} 守り確定 → なし`);
+      continue;
+    }
+
+    target.guardIncomingSlot = resolvedSlotIndex;
+
+    if (resolvedSlotIndex !== slotIndex) {
+      logPush(
+        game,
+        `P${actorId + 1} 守り確定 → P${targetId + 1} S${slotIndex + 1}は狩人のため、P${targetId + 1} S${resolvedSlotIndex + 1}へ変更`
+      );
+    } else {
+      logPush(game, `P${actorId + 1} 守り確定 → P${targetId + 1} S${resolvedSlotIndex + 1}`);
+    }
+  }
+
+  game.pendingGuards = [];
+  game.roundGuardActors = [];
 }
 
 function resolvePendingBites(game) {
@@ -438,16 +468,15 @@ function finalizePlayerState(game, player) {
   }
 }
 
-function judgeAfterGuard(game) {
+function judgeAfterResolution(game) {
+  resolvePendingGuards(game);
   resolvePendingBites(game);
 
-  // タイマンは予約判定方式
   if (CONFIG.playerCount === 2) {
     if (resolveDuelPendingOrSet(game)) return;
     return;
   }
 
-  // 3人以上の従来処理
   for (const player of game.players) {
     if (player.alive) finalizePlayerState(game, player);
   }
@@ -568,47 +597,31 @@ function advancePhase(game) {
     game.phase = PHASES.RESERVE_B;
     return;
   }
-
-  if (game.mode === MODES.WOLF) {
-    if (game.phase === PHASES.RESERVE_B) {
-      game.phase = PHASES.BITE;
-      return;
-    }
-    if (game.phase === PHASES.BITE) {
-      game.phase = PHASES.GUARD;
-      return;
-    }
-    if (game.phase === PHASES.GUARD) {
-      judgeAfterGuard(game);
+  if (game.phase === PHASES.RESERVE_B) {
+    game.phase = PHASES.GUARD;
+    return;
+  }
+  if (game.phase === PHASES.GUARD) {
+    game.phase = PHASES.BITE;
+    return;
+  }
+  if (game.phase === PHASES.BITE) {
+    // 両者のガード予約・噛み予約が揃うまで次の人へ
+    if (allAliveActorsReservedGuard(game) && allAliveActorsReservedBite(game)) {
+      judgeAfterResolution(game);
       if (!game.over) nextTurn(game);
-      return;
-    }
-  } else {
-    if (game.phase === PHASES.RESERVE_B) {
-      game.phase = PHASES.GUARD;
-      return;
-    }
-    if (game.phase === PHASES.GUARD) {
-      game.phase = PHASES.BITE;
-      return;
-    }
-    if (game.phase === PHASES.BITE) {
-      if (allAliveActorsReservedBite(game)) {
-        judgeAfterGuard(game);
+    } else {
+      const next = nextAliveIndex(game, game.turn, +1);
+      if (next == null) {
+        judgeAfterResolution(game);
         if (!game.over) nextTurn(game);
       } else {
-        const next = nextAliveIndex(game, game.turn, +1);
-        if (next == null) {
-          judgeAfterGuard(game);
-          if (!game.over) nextTurn(game);
-        } else {
-          game.turn = next;
-          game.phase = PHASES.LYNCH;
-          revealPendingReportsForActor(game, game.turn);
-        }
+        game.turn = next;
+        game.phase = PHASES.LYNCH;
+        revealPendingReportsForActor(game, game.turn);
       }
-      return;
     }
+    return;
   }
 }
 
@@ -744,26 +757,15 @@ export function applyGuard(game, actorId, targetId, slotIndex) {
   const target = game.players[targetId];
   if (!target) return;
 
-  const resolvedSlotIndex = resolveGuardSlotIndex(target, slotIndex);
+  const requested = target?.slots?.[slotIndex];
+  if (!requested || requested.dead) return;
 
-  if (resolvedSlotIndex == null) {
-    target.guardIncomingSlot = null;
-    logPush(game, `P${actorId + 1} 守り設定 → なし`);
-    advancePhase(game);
-    return;
+  game.pendingGuards.push({ actorId, targetId, slotIndex });
+  if (!game.roundGuardActors.includes(actorId)) {
+    game.roundGuardActors.push(actorId);
   }
 
-  target.guardIncomingSlot = resolvedSlotIndex;
-
-  if (resolvedSlotIndex !== slotIndex) {
-    logPush(
-      game,
-      `P${actorId + 1} 守り設定 → P${targetId + 1} S${slotIndex + 1}は狩人のため、P${targetId + 1} S${resolvedSlotIndex + 1}へ変更`
-    );
-  } else {
-    logPush(game, `P${actorId + 1} 守り設定 → P${targetId + 1} S${resolvedSlotIndex + 1}`);
-  }
-
+  logPush(game, `P${actorId + 1} 守り予約 → P${targetId + 1} S${slotIndex + 1}`);
   advancePhase(game);
 }
 
@@ -826,7 +828,10 @@ export function doAbsentOk(game) {
   }
 
   if (game.phase === PHASES.GUARD) {
-    logPush(game, `P${actorId + 1} 守り設定 → 対象なしでスキップ`);
+    logPush(game, `P${actorId + 1} 守り予約 → 対象なしでスキップ`);
+    if (!game.roundGuardActors.includes(actorId)) {
+      game.roundGuardActors.push(actorId);
+    }
     advancePhase(game);
   }
 }
@@ -917,6 +922,31 @@ export function cpuDoOneImmediate(game) {
     return;
   }
 
+  if (game.phase === PHASES.GUARD) {
+    if (guardTargetId == null) {
+      if (!game.roundGuardActors.includes(actorId)) {
+        game.roundGuardActors.push(actorId);
+      }
+      advancePhase(game);
+      return;
+    }
+
+    const target = game.players[guardTargetId];
+    const pick = pickCpuGuardTarget(target, game);
+
+    if (pick == null) {
+      logPush(game, `CPU P${actorId + 1} 守り予約 → 対象なし`);
+      if (!game.roundGuardActors.includes(actorId)) {
+        game.roundGuardActors.push(actorId);
+      }
+      advancePhase(game);
+      return;
+    }
+
+    applyGuard(game, actorId, guardTargetId, pick);
+    return;
+  }
+
   if (game.phase === PHASES.BITE) {
     if (biteTargetId == null) {
       logPush(game, `CPU P${actorId + 1} 噛み → 対象なし`);
@@ -931,25 +961,6 @@ export function cpuDoOneImmediate(game) {
       return;
     }
     applyBite(game, actorId, biteTargetId, pick);
-    return;
-  }
-
-  if (game.phase === PHASES.GUARD) {
-    if (guardTargetId == null) {
-      advancePhase(game);
-      return;
-    }
-
-    const target = game.players[guardTargetId];
-    const pick = pickCpuGuardTarget(target, game);
-
-    if (pick == null) {
-      logPush(game, `CPU P${actorId + 1} 守り設定 → 対象なし`);
-      advancePhase(game);
-      return;
-    }
-
-    applyGuard(game, actorId, guardTargetId, pick);
     return;
   }
 }
@@ -999,15 +1010,15 @@ export function applyHumanPick(game, viewAsId, playerId, slotIndex) {
     return;
   }
 
-  if (game.phase === PHASES.BITE) {
-    if (biteTargetId == null || playerId !== biteTargetId) return;
-    applyBite(game, actorId, playerId, slotIndex);
-    return;
-  }
-
   if (game.phase === PHASES.GUARD) {
     if (guardTargetId == null || playerId !== guardTargetId) return;
     applyGuard(game, actorId, playerId, slotIndex);
+    return;
+  }
+
+  if (game.phase === PHASES.BITE) {
+    if (biteTargetId == null || playerId !== biteTargetId) return;
+    applyBite(game, actorId, playerId, slotIndex);
   }
 }
 
@@ -1015,8 +1026,8 @@ export function phaseLabel(phase) {
   if (phase === PHASES.LYNCH) return "吊り";
   if (phase === PHASES.RESERVE_A) return "占A予約";
   if (phase === PHASES.RESERVE_B) return "占B予約";
-  if (phase === PHASES.BITE) return "噛み";
-  if (phase === PHASES.GUARD) return "守り設定";
+  if (phase === PHASES.GUARD) return "守り予約";
+  if (phase === PHASES.BITE) return "噛み予約";
   if (phase === PHASES.END) return "終了";
   return "";
 }
