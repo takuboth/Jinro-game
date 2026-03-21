@@ -40,8 +40,11 @@ export const PHASES = {
 };
 
 export const CONFIG = {
-  playerCount: 3,
-  slotCount: 10,
+  // タイマン
+  playerCount: 2,
+
+  // 6×3 = 18枚
+  slotCount: 18,
 
   humanPlayerId: 0,
   autoPlayers: true,
@@ -53,10 +56,20 @@ export const CONFIG = {
 
   defaultMode: MODES.WOLF,
 
+  // 公開3 + 非公開15 = 合計18
   hiddenDeck: [
     ROLES.WOLF,
     ROLES.WOLF,
+    ROLES.WOLF,
     ROLES.GUARD,
+
+    ROLES.VILLAGER,
+    ROLES.VILLAGER,
+    ROLES.VILLAGER,
+    ROLES.VILLAGER,
+    ROLES.VILLAGER,
+    ROLES.VILLAGER,
+    ROLES.VILLAGER,
     ROLES.VILLAGER,
     ROLES.VILLAGER,
     ROLES.VILLAGER,

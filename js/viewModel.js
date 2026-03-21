@@ -3,8 +3,6 @@ import {
   roleChar,
   publicLabel,
   fullRevealPublicLabel,
-  countAliveWolves,
-  countAliveNonWolves,
 } from "./utils.js";
 import {
   getLynchTargetId,
@@ -14,23 +12,21 @@ import {
   phaseLabel
 } from "./game.js";
 
-function fixedLeftId(viewAsId) {
-  return (viewAsId - 1 + CONFIG.playerCount) % CONFIG.playerCount;
+function getOpponentId(viewAsId) {
+  for (let i = 0; i < CONFIG.playerCount; i++) {
+    if (i !== viewAsId) return i;
+  }
+  return null;
 }
 
-function fixedRightId(viewAsId) {
-  return (viewAsId + 1) % CONFIG.playerCount;
+function displayOrderForDuel(viewAsId) {
+  const opponentId = getOpponentId(viewAsId);
+  return opponentId == null ? [viewAsId] : [opponentId, viewAsId];
 }
 
-function fixedDisplayOrder(viewAsId) {
-  return [fixedLeftId(viewAsId), viewAsId, fixedRightId(viewAsId)];
-}
-
-function relativeLabel(viewAsId, playerId) {
+function relationLabel(viewAsId, playerId) {
   if (playerId === viewAsId) return "自分";
-  if (playerId === fixedLeftId(viewAsId)) return "左";
-  if (playerId === fixedRightId(viewAsId)) return "右";
-  return "";
+  return "相手";
 }
 
 function slotRoleText(slot, playerId, viewAsId, revealAll, mode) {
@@ -44,9 +40,12 @@ function slotRoleText(slot, playerId, viewAsId, revealAll, mode) {
   }
 
   if (slot.role === ROLES.WOLF) {
+    // 人狼モード：自分の狼だけ見える
     if (mode === MODES.WOLF && playerId === viewAsId) {
       return "狼";
     }
+
+    // 村人モード：自分以外の狼だけ見える
     if (mode === MODES.VILLAGER && playerId !== viewAsId) {
       return "狼";
     }
@@ -158,20 +157,25 @@ export function deriveViewModel(game, viewAsId) {
 
   const players = game.players.map((p) => {
     const revealAll = !p.alive || game.over;
-    const wolves = countAliveWolves(p);
-    const nonWolves = countAliveNonWolves(p);
+
+    let resultText = "";
+    if (typeof p.resultText === "string" && p.resultText) {
+      resultText = p.resultText;
+    } else if (!p.alive) {
+      resultText = p.escaped ? "WIN" : "LOSE";
+    }
 
     return {
       id: p.id,
       name: `P${p.id + 1}`,
-      relation: relativeLabel(viewAsId, p.id),
+      relation: relationLabel(viewAsId, p.id),
       alive: p.alive,
       escaped: p.escaped,
       revealAll,
 
-      resultText: !p.alive ? (p.escaped ? "WIN" : "LOSE") : "",
+      resultText,
       wolfCount: null,
-      nonWolves : null,
+      nonWolfCount: null,
 
       guardIncomingSlot: p.guardIncomingSlot,
 
@@ -189,7 +193,7 @@ export function deriveViewModel(game, viewAsId) {
     };
   });
 
-  const displayOrder = fixedDisplayOrder(viewAsId);
+  const displayOrder = displayOrderForDuel(viewAsId);
 
   return {
     game,

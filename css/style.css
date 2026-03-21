@@ -140,9 +140,17 @@ select{
 
 .players{
   display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  gap: 4px;
+  grid-template-columns: 1fr;
+  gap: 6px;
   align-items: start;
+}
+
+.grid{
+  display: grid;
+  grid-template-columns: repeat(6, var(--slotW));
+  grid-template-rows: repeat(3, var(--slotH));
+  gap: var(--slotGap);
+  justify-content: center;
 }
 
 .player{
@@ -200,14 +208,6 @@ select{
   font-size: 11px;
   font-weight: 700;
   line-height: 1;
-}
-
-.grid{
-  display: grid;
-  grid-template-columns: repeat(2, var(--slotW));
-  grid-template-rows: repeat(5, var(--slotH));
-  gap: var(--slotGap);
-  justify-content: center;
 }
 
 .slot{
