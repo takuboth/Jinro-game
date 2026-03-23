@@ -3,8 +3,6 @@ import {
   roleChar,
   publicLabel,
   fullRevealPublicLabel,
-  countAliveWolves,
-  countAliveNonWolves,
 } from "./utils.js";
 import {
   getLynchTargetId,
@@ -14,23 +12,16 @@ import {
   phaseLabel
 } from "./game.js";
 
-function fixedLeftId(viewAsId) {
-  return (viewAsId - 1 + CONFIG.playerCount) % CONFIG.playerCount;
+function getOpponentId(viewAsId) {
+  return viewAsId === 0 ? 1 : 0;
 }
 
-function fixedRightId(viewAsId) {
-  return (viewAsId + 1) % CONFIG.playerCount;
+function displayOrderForDuel(viewAsId) {
+  return [getOpponentId(viewAsId), viewAsId];
 }
 
-function fixedDisplayOrder(viewAsId) {
-  return [fixedLeftId(viewAsId), viewAsId, fixedRightId(viewAsId)];
-}
-
-function relativeLabel(viewAsId, playerId) {
-  if (playerId === viewAsId) return "自分";
-  if (playerId === fixedLeftId(viewAsId)) return "左";
-  if (playerId === fixedRightId(viewAsId)) return "右";
-  return "";
+function relationLabel(viewAsId, playerId) {
+  return playerId === viewAsId ? "自分" : "相手";
 }
 
 function slotRoleText(slot, playerId, viewAsId, revealAll, mode) {
@@ -44,12 +35,8 @@ function slotRoleText(slot, playerId, viewAsId, revealAll, mode) {
   }
 
   if (slot.role === ROLES.WOLF) {
-    if (mode === MODES.WOLF && playerId === viewAsId) {
-      return "狼";
-    }
-    if (mode === MODES.VILLAGER && playerId !== viewAsId) {
-      return "狼";
-    }
+    if (mode === MODES.WOLF && playerId === viewAsId) return "狼";
+    if (mode === MODES.VILLAGER && playerId !== viewAsId) return "狼";
   }
 
   return "";
@@ -85,30 +72,23 @@ export function deriveViewModel(game, viewAsId) {
   const biteTargetId = actor ? getBiteTargetId(game, actorId) : null;
 
   if (humanCanAct) {
-    if (game.phase === PHASES.LYNCH) {
-      if (lynchTargetId != null) focusPlayers.push(lynchTargetId);
-    } else if (game.phase === PHASES.RESERVE_A || game.phase === PHASES.RESERVE_B) {
-      if (reserveTargetId != null) focusPlayers.push(reserveTargetId);
-    } else if (game.phase === PHASES.BITE) {
-      if (biteTargetId != null) focusPlayers.push(biteTargetId);
-    } else if (game.phase === PHASES.GUARD) {
-      if (guardTargetId != null) focusPlayers.push(guardTargetId);
-    }
+    if (game.phase === PHASES.LYNCH) focusPlayers.push(lynchTargetId);
+    else if (game.phase === PHASES.RESERVE_A || game.phase === PHASES.RESERVE_B) focusPlayers.push(reserveTargetId);
+    else if (game.phase === PHASES.GUARD) focusPlayers.push(guardTargetId);
+    else if (game.phase === PHASES.BITE) focusPlayers.push(biteTargetId);
   }
 
   if (humanCanAct) {
-    if (game.phase === PHASES.LYNCH && lynchTargetId != null) {
+    if (game.phase === PHASES.LYNCH) {
       const target = game.players[lynchTargetId];
       for (let i = 0; i < CONFIG.slotCount; i++) {
         clickable[lynchTargetId][i] = !target.slots[i].dead;
       }
     }
 
-    if (game.phase === PHASES.RESERVE_A && reserveTargetId != null) {
+    if (game.phase === PHASES.RESERVE_A) {
       const target = game.players[reserveTargetId];
-      const aAlive = target.slots.some(
-        s => s.isPublic && s.publicKind === PUBLIC_KIND.A && !s.dead
-      );
+      const aAlive = target.slots.some(s => s.isPublic && s.publicKind === PUBLIC_KIND.A && !s.dead);
       if (aAlive) {
         for (let i = 0; i < CONFIG.slotCount; i++) {
           const s = target.slots[i];
@@ -117,11 +97,9 @@ export function deriveViewModel(game, viewAsId) {
       }
     }
 
-    if (game.phase === PHASES.RESERVE_B && reserveTargetId != null) {
+    if (game.phase === PHASES.RESERVE_B) {
       const target = game.players[reserveTargetId];
-      const bAlive = target.slots.some(
-        s => s.isPublic && s.publicKind === PUBLIC_KIND.B && !s.dead
-      );
+      const bAlive = target.slots.some(s => s.isPublic && s.publicKind === PUBLIC_KIND.B && !s.dead);
       if (bAlive) {
         for (let i = 0; i < CONFIG.slotCount; i++) {
           const s = target.slots[i];
@@ -130,19 +108,18 @@ export function deriveViewModel(game, viewAsId) {
       }
     }
 
-    if (game.phase === PHASES.BITE && biteTargetId != null) {
+    if (game.phase === PHASES.GUARD) {
+      const target = game.players[guardTargetId];
+      for (let i = 0; i < CONFIG.slotCount; i++) {
+        clickable[guardTargetId][i] = !target.slots[i].dead;
+      }
+    }
+
+    if (game.phase === PHASES.BITE) {
       const target = game.players[biteTargetId];
       for (let i = 0; i < CONFIG.slotCount; i++) {
         const s = target.slots[i];
         clickable[biteTargetId][i] = !s.dead && s.role !== ROLES.WOLF;
-      }
-    }
-
-    if (game.phase === PHASES.GUARD && guardTargetId != null) {
-      const target = game.players[guardTargetId];
-      for (let i = 0; i < CONFIG.slotCount; i++) {
-        const s = target.slots[i];
-        clickable[guardTargetId][i] = !s.dead;
       }
     }
   }
@@ -152,26 +129,29 @@ export function deriveViewModel(game, viewAsId) {
     ? `${modeText}モード / 終了（勝者: ${game.winners.length ? game.winners.map(id => `P${id + 1}`).join(", ") : "なし"}）`
     : `${modeText}モード / ${phaseLabel(game.phase)}`;
 
-  const acting = game.over
-    ? ""
-    : `手番: P${actorId + 1}`;
+  const acting = game.over ? "" : `手番: P${actorId + 1}`;
 
   const players = game.players.map((p) => {
     const revealAll = !p.alive || game.over;
-    const wolves = countAliveWolves(p);
-    const nonWolves = countAliveNonWolves(p);
+
+    let resultText = "";
+    if (typeof p.resultText === "string" && p.resultText) {
+      resultText = p.resultText;
+    } else if (!p.alive) {
+      resultText = p.escaped ? "WIN" : "LOSE";
+    }
 
     return {
       id: p.id,
       name: `P${p.id + 1}`,
-      relation: relativeLabel(viewAsId, p.id),
+      relation: relationLabel(viewAsId, p.id),
       alive: p.alive,
       escaped: p.escaped,
       revealAll,
 
-      resultText: !p.alive ? (p.escaped ? "WIN" : "LOSE") : "",
+      resultText,
       wolfCount: null,
-      nonWolves : null,
+      nonWolfCount: null,
 
       guardIncomingSlot: p.guardIncomingSlot,
 
@@ -189,8 +169,6 @@ export function deriveViewModel(game, viewAsId) {
     };
   });
 
-  const displayOrder = fixedDisplayOrder(viewAsId);
-
   return {
     game,
     viewAsId,
@@ -199,6 +177,6 @@ export function deriveViewModel(game, viewAsId) {
     status,
     acting,
     players,
-    displayOrder,
+    displayOrder: displayOrderForDuel(viewAsId),
   };
 }
