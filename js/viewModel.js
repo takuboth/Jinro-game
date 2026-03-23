@@ -1,3 +1,5 @@
+import { getSlotMark } from "./markUtils.js";
+import { MARK_KEYS } from "./markKeys.js";
 import { CONFIG, MODES, ROLES, PHASES, DEATH, PUBLIC_KIND } from "./config.js";
 import {
   roleChar,
@@ -160,9 +162,9 @@ export function deriveViewModel(game, viewAsId) {
         roleText: slotRoleText(slot, p.id, viewAsId, revealAll, game.mode),
         dead: slot.dead,
         isPublic: slot.isPublic,
-        seerA: slot.seerA,
-        seerB: slot.seerB,
-        medium: slot.medium,
+        seerA: getSlotMark(slot, MARK_KEYS.SEER_A),
+        seerB: getSlotMark(slot, MARK_KEYS.SEER_B),
+        medium: getSlotMark(slot, MARK_KEYS.MEDIUM),
         death: deathMark(slot),
         clickable: clickable[p.id][idx],
       })),
