@@ -1,6 +1,12 @@
 import { getSlotMark } from "./markUtils.js";
 import { MARK_KEYS } from "./markKeys.js";
-import { roleLabel, isWolfRole } from "./roles.js";
+import {
+  roleLabel,
+  isWolfRole,
+  countsAsWolf,
+  canBeBitten,
+  canGuardSelfTarget,
+} from "./roles.js";
 import { CONFIG, ROLES, MARK, PUBLIC_KIND } from "./config.js";
 
 export function nowStamp() {
@@ -72,7 +78,7 @@ export function getAliveHiddenSlots(player) {
 export function getAliveBiteTargets(player) {
   return player.slots
     .map((slot, index) => ({ slot, index }))
-    .filter(x => !x.slot.dead && x.slot.role !== ROLES.WOLF);
+    .filter(x => !x.slot.dead && canBeBitten(x.slot.role));
 }
 
 export function getAliveGuardTargets(player) {
@@ -90,11 +96,11 @@ export function countAliveRole(player, role) {
 }
 
 export function countAliveWolves(player) {
-  return countAliveRole(player, ROLES.WOLF);
+  return player.slots.filter(s => !s.dead && countsAsWolf(s.role)).length;
 }
 
 export function countAliveNonWolves(player) {
-  return player.slots.filter(s => !s.dead && s.role !== ROLES.WOLF).length;
+  return player.slots.filter(s => !s.dead && !countsAsWolf(s.role)).length;
 }
 
 export function isLineAlive(player, kind) {
