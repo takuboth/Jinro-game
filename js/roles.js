@@ -4,7 +4,13 @@ export const ROLE_DEF = {
     label: "狼",
     team: "wolf",
     hidden: true,
-    publicKind: null,
+
+    countsAsWolf: true,
+    canBeBitten: false,
+    canGuardSelfTarget: false,
+
+    visibleInWolfModeSelf: true,
+    visibleInVillagerModeOthers: true,
   },
 
   VILLAGER: {
@@ -12,7 +18,13 @@ export const ROLE_DEF = {
     label: "村",
     team: "village",
     hidden: true,
-    publicKind: null,
+
+    countsAsWolf: false,
+    canBeBitten: true,
+    canGuardSelfTarget: true,
+
+    visibleInWolfModeSelf: false,
+    visibleInVillagerModeOthers: false,
   },
 
   GUARD: {
@@ -20,7 +32,13 @@ export const ROLE_DEF = {
     label: "狩",
     team: "village",
     hidden: true,
-    publicKind: null,
+
+    countsAsWolf: false,
+    canBeBitten: true,
+    canGuardSelfTarget: false,
+
+    visibleInWolfModeSelf: false,
+    visibleInVillagerModeOthers: false,
   },
 
   SEER: {
@@ -28,7 +46,13 @@ export const ROLE_DEF = {
     label: "占",
     team: "public",
     hidden: false,
-    publicKind: "A_OR_B",
+
+    countsAsWolf: false,
+    canBeBitten: true,
+    canGuardSelfTarget: true,
+
+    visibleInWolfModeSelf: true,
+    visibleInVillagerModeOthers: true,
   },
 
   MAD: {
@@ -36,7 +60,13 @@ export const ROLE_DEF = {
     label: "狂",
     team: "public",
     hidden: false,
-    publicKind: "A_OR_B",
+
+    countsAsWolf: false,
+    canBeBitten: true,
+    canGuardSelfTarget: true,
+
+    visibleInWolfModeSelf: true,
+    visibleInVillagerModeOthers: true,
   },
 
   MEDIUM: {
@@ -44,7 +74,13 @@ export const ROLE_DEF = {
     label: "霊",
     team: "public",
     hidden: false,
-    publicKind: "MEDIUM",
+
+    countsAsWolf: false,
+    canBeBitten: true,
+    canGuardSelfTarget: true,
+
+    visibleInWolfModeSelf: true,
+    visibleInVillagerModeOthers: true,
   },
 };
 
@@ -57,15 +93,35 @@ export function roleLabel(role) {
 }
 
 export function isWolfRole(role) {
-  return ROLE_DEF[role]?.team === "wolf";
+  return ROLE_DEF[role]?.countsAsWolf === true;
 }
 
-export function isVillageRole(role) {
-  return ROLE_DEF[role]?.team === "village";
+export function countsAsWolf(role) {
+  return ROLE_DEF[role]?.countsAsWolf === true;
+}
+
+export function canBeBitten(role) {
+  return ROLE_DEF[role]?.canBeBitten !== false;
+}
+
+export function canGuardSelfTarget(role) {
+  return ROLE_DEF[role]?.canGuardSelfTarget === true;
 }
 
 export function isPublicRole(role) {
   return ROLE_DEF[role]?.hidden === false;
+}
+
+export function isHiddenRole(role) {
+  return ROLE_DEF[role]?.hidden === true;
+}
+
+export function isVisibleInWolfModeSelf(role) {
+  return ROLE_DEF[role]?.visibleInWolfModeSelf === true;
+}
+
+export function isVisibleInVillagerModeOthers(role) {
+  return ROLE_DEF[role]?.visibleInVillagerModeOthers === true;
 }
 
 export function buildHiddenDeck(roleCounts) {
