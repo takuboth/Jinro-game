@@ -14,6 +14,7 @@ import {
   judgeAfterResolution,
   killSlot,
 } from "./duelJudge.js";
+import { DUEL_TURN_FLOW, getNextPhase, isLastPhase } from "./duelFlowDef.js";
 
 export function getOpponentId(actorId) {
   return actorId === 0 ? 1 : 0;
@@ -46,43 +47,42 @@ function allAliveActorsReservedBite(game) {
 }
 
 export function nextTurn(game, logPush) {
-  const next = getOpponentId(game.turn);
-  game.turn = next;
-  game.phase = PHASES.LYNCH;
+  game.turn = getOpponentId(game.turn);
+  game.phase = DUEL_TURN_FLOW[0];
 
   clearRoundReservations(game);
+  revealPendingReportsForActor(game, game.turn, logPush, getReserveTargetId);
+}
+
+function finishRoundAndMove(game, logPush) {
+  judgeAfterResolution(game, logPush);
+  if (!game.over) {
+    nextTurn(game, logPush);
+  }
+}
+
+function moveToNextActorOrResolve(game, logPush) {
+  game.turn = getOpponentId(game.turn);
+  game.phase = DUEL_TURN_FLOW[0];
   revealPendingReportsForActor(game, game.turn, logPush, getReserveTargetId);
 }
 
 export function advancePhase(game, logPush) {
   if (game.over) return;
 
-  if (game.phase === PHASES.LYNCH) {
-    game.phase = PHASES.RESERVE_A;
-    return;
-  }
-  if (game.phase === PHASES.RESERVE_A) {
-    game.phase = PHASES.RESERVE_B;
-    return;
-  }
-  if (game.phase === PHASES.RESERVE_B) {
-    game.phase = PHASES.GUARD;
-    return;
-  }
-  if (game.phase === PHASES.GUARD) {
-    game.phase = PHASES.BITE;
-    return;
-  }
-  if (game.phase === PHASES.BITE) {
-    if (allAliveActorsReservedGuard(game) && allAliveActorsReservedBite(game)) {
-      judgeAfterResolution(game, logPush);
-      if (!game.over) nextTurn(game, logPush);
-      return;
+  if (!isLastPhase(game.phase)) {
+    const next = getNextPhase(game.phase);
+    if (next) {
+      game.phase = next;
     }
+    return;
+  }
 
-    game.turn = getOpponentId(game.turn);
-    game.phase = PHASES.LYNCH;
-    revealPendingReportsForActor(game, game.turn, logPush, getReserveTargetId);
+  // 最終フェーズ(BITE)を終えた時だけラウンド処理
+  if (allAliveActorsReservedGuard(game) && allAliveActorsReservedBite(game)) {
+    finishRoundAndMove(game, logPush);
+  } else {
+    moveToNextActorOrResolve(game, logPush);
   }
 }
 
