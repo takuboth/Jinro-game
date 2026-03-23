@@ -40,9 +40,12 @@ function slotRoleText(slot, playerId, viewAsId, revealAll, mode) {
     return publicLabel(slot.publicKind);
   }
 
-  if (slot.role === ROLES.WOLF) {
-    if (mode === MODES.WOLF && playerId === viewAsId) return "狼";
-    if (mode === MODES.VILLAGER && playerId !== viewAsId) return "狼";
+  if (mode === MODES.WOLF && playerId === viewAsId && isVisibleInWolfModeSelf(slot.role)) {
+    return roleChar(slot.role);
+  }
+
+  if (mode === MODES.VILLAGER && playerId !== viewAsId && isVisibleInVillagerModeOthers(slot.role)) {
+    return roleChar(slot.role);
   }
 
   return "";
