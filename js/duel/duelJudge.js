@@ -1,3 +1,4 @@
+import { canBeBitten, canGuardSelfTarget } from "../roles.js";
 import { CONFIG, MODES, ROLES, DEATH } from "../config.js";
 import {
   countAliveWolves,
@@ -100,19 +101,22 @@ function resolveGuardSlotIndex(targetPlayer, requestedSlotIndex) {
   const requested = targetPlayer?.slots?.[requestedSlotIndex];
   if (!requested || requested.dead) return null;
 
-  if (requested.role !== ROLES.GUARD) {
+  if (canGuardSelfTarget(requested.role)) {
     return requestedSlotIndex;
   }
 
-  const villagerCandidates = targetPlayer.slots
+  const fallbackCandidates = targetPlayer.slots
     .map((slot, index) => ({ slot, index }))
-    .filter(x => !x.slot.dead && x.slot.role === ROLES.VILLAGER);
+    .filter(x =>
+      !x.slot.dead &&
+      canGuardSelfTarget(x.slot.role)
+    );
 
-  if (!villagerCandidates.length) {
+  if (!fallbackCandidates.length) {
     return null;
   }
 
-  const picked = pickRandom(villagerCandidates);
+  const picked = pickRandom(fallbackCandidates);
   return picked ? picked.index : null;
 }
 
@@ -153,7 +157,7 @@ export function resolvePendingBites(game, logPush) {
     const slot = target?.slots?.[slotIndex];
 
     if (!target || !target.alive || !slot || slot.dead) continue;
-    if (slot.role === ROLES.WOLF) continue;
+    if (!canBeBitten(slot.role)) continue;
 
     const guardActive =
       hasAliveRole(target, ROLES.GUARD) &&
