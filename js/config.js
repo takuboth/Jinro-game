@@ -43,6 +43,7 @@ export const PHASES = {
 
 export const CONFIG = {
   playerCount: 2,
+  publicSlotCount: 3,
   slotCount: 18,
 
   humanPlayerId: 0,
@@ -61,7 +62,6 @@ export const CONFIG = {
     [ROLES.VILLAGER]: 11,
   },
 
-  // 将来、モード別にフローを変えたくなった時の入口
   flowByMode: {
     [MODES.WOLF]: [
       PHASES.LYNCH,
