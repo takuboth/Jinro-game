@@ -1,3 +1,4 @@
+import { roleLabel, isWolfRole } from "./roles.js";
 import { CONFIG, ROLES, MARK, PUBLIC_KIND } from "./config.js";
 
 export function nowStamp() {
