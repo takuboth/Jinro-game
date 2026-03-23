@@ -12,6 +12,7 @@ export const ROLES = {
   MEDIUM: "MEDIUM",
   GUARD: "GUARD",
   VILLAGER: "VILLAGER",
+  FOX: "FOX",
 };
 
 export const MARK = {
@@ -24,6 +25,8 @@ export const DEATH = {
   NONE: "NONE",
   LYNCH: "LYNCH",
   BITE: "BITE",
+  SEER_KILL: "SEER_KILL",
+  FOX_LINK: "FOX_LINK",
 };
 
 export const PUBLIC_KIND = {
@@ -59,7 +62,8 @@ export const CONFIG = {
   hiddenRoleCounts: {
     [ROLES.WOLF]: 3,
     [ROLES.GUARD]: 1,
-    [ROLES.VILLAGER]: 11,
+    [ROLES.FOX]: 1,
+    [ROLES.VILLAGER]: 10,
   },
 
   flowByMode: {
