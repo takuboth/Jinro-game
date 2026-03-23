@@ -8,6 +8,7 @@ export const ROLE_DEF = {
     countsAsWolf: true,
     canBeBitten: false,
     canGuardSelfTarget: false,
+    isFox: false,
 
     visibleInWolfModeSelf: true,
     visibleInVillagerModeOthers: true,
@@ -22,6 +23,7 @@ export const ROLE_DEF = {
     countsAsWolf: false,
     canBeBitten: true,
     canGuardSelfTarget: true,
+    isFox: false,
 
     visibleInWolfModeSelf: false,
     visibleInVillagerModeOthers: false,
@@ -36,6 +38,22 @@ export const ROLE_DEF = {
     countsAsWolf: false,
     canBeBitten: true,
     canGuardSelfTarget: false,
+    isFox: false,
+
+    visibleInWolfModeSelf: false,
+    visibleInVillagerModeOthers: false,
+  },
+
+  FOX: {
+    key: "FOX",
+    label: "狐",
+    team: "fox",
+    hidden: true,
+
+    countsAsWolf: false,
+    canBeBitten: false,
+    canGuardSelfTarget: true,
+    isFox: true,
 
     visibleInWolfModeSelf: false,
     visibleInVillagerModeOthers: false,
@@ -50,6 +68,7 @@ export const ROLE_DEF = {
     countsAsWolf: false,
     canBeBitten: true,
     canGuardSelfTarget: true,
+    isFox: false,
 
     visibleInWolfModeSelf: true,
     visibleInVillagerModeOthers: true,
@@ -64,6 +83,7 @@ export const ROLE_DEF = {
     countsAsWolf: false,
     canBeBitten: true,
     canGuardSelfTarget: true,
+    isFox: false,
 
     visibleInWolfModeSelf: true,
     visibleInVillagerModeOthers: true,
@@ -78,6 +98,7 @@ export const ROLE_DEF = {
     countsAsWolf: false,
     canBeBitten: true,
     canGuardSelfTarget: true,
+    isFox: false,
 
     visibleInWolfModeSelf: true,
     visibleInVillagerModeOthers: true,
@@ -106,6 +127,10 @@ export function canBeBitten(role) {
 
 export function canGuardSelfTarget(role) {
   return ROLE_DEF[role]?.canGuardSelfTarget === true;
+}
+
+export function isFoxRole(role) {
+  return ROLE_DEF[role]?.isFox === true;
 }
 
 export function isPublicRole(role) {
