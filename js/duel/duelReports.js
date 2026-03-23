@@ -1,4 +1,6 @@
 import { MARK, PUBLIC_KIND } from "../config.js";
+import { MARK_KEYS } from "../markKeys.js";
+import { getSlotMark, setSlotMark } from "../markUtils.js";
 import {
   colorFromRole,
   getTrueLineKind,
@@ -40,8 +42,11 @@ export function revealPendingReportsForActor(game, actorId, logPush, getReserveT
     if (tgtSlot) {
       trueColor = colorFromRole(tgtSlot.role);
 
-      if (trueKind === PUBLIC_KIND.A) tgtSlot.seerA = trueColor;
-      else tgtSlot.seerB = trueColor;
+      if (trueKind === PUBLIC_KIND.A) {
+        setSlotMark(tgtSlot, MARK_KEYS.SEER_A, trueColor);
+      } else {
+        setSlotMark(tgtSlot, MARK_KEYS.SEER_B, trueColor);
+      }
 
       logPush(
         game,
@@ -59,8 +64,8 @@ export function revealPendingReportsForActor(game, actorId, logPush, getReserveT
 
       if (trueColor !== null) {
         const opponentBlack =
-          (fakeKind === PUBLIC_KIND.A && tgtSlot.seerB === MARK.BLACK) ||
-          (fakeKind === PUBLIC_KIND.B && tgtSlot.seerA === MARK.BLACK);
+          (fakeKind === PUBLIC_KIND.A && getSlotMark(tgtSlot, MARK_KEYS.SEER_B) === MARK.BLACK) ||
+          (fakeKind === PUBLIC_KIND.B && getSlotMark(tgtSlot, MARK_KEYS.SEER_A) === MARK.BLACK);
 
         if (opponentBlack) {
           fakeColor = MARK.WHITE;
@@ -72,8 +77,11 @@ export function revealPendingReportsForActor(game, actorId, logPush, getReserveT
         }
       }
 
-      if (fakeKind === PUBLIC_KIND.A) tgtSlot.seerA = fakeColor;
-      else tgtSlot.seerB = fakeColor;
+      if (fakeKind === PUBLIC_KIND.A) {
+        setSlotMark(tgtSlot, MARK_KEYS.SEER_A, fakeColor);
+      } else {
+        setSlotMark(tgtSlot, MARK_KEYS.SEER_B, fakeColor);
+      }
 
       logPush(
         game,
@@ -86,7 +94,7 @@ export function revealPendingReportsForActor(game, actorId, logPush, getReserveT
     const tgtPlayer = game.players[actor.pendingMedium.targetId];
     const tgtSlot = tgtPlayer?.slots?.[actor.pendingMedium.slotIndex];
     if (tgtSlot) {
-      tgtSlot.medium = actor.pendingMedium.color;
+      setSlotMark(tgtSlot, MARK_KEYS.MEDIUM, actor.pendingMedium.color);
       logPush(
         game,
         `P${actorId + 1} 霊媒結果 → P${actor.pendingMedium.targetId + 1} S${actor.pendingMedium.slotIndex + 1} = ${actor.pendingMedium.color === MARK.BLACK ? "黒" : "白"}`
