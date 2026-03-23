@@ -1,3 +1,7 @@
+import {
+  isVisibleInWolfModeSelf,
+  isVisibleInVillagerModeOthers,
+} from "./roles.js";
 import { getSlotMark } from "./markUtils.js";
 import { MARK_KEYS } from "./markKeys.js";
 import { CONFIG, MODES, ROLES, PHASES, DEATH, PUBLIC_KIND } from "./config.js";
