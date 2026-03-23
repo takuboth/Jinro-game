@@ -1,3 +1,5 @@
+import { buildHiddenDeck } from "./roles.js";
+
 export const MODES = {
   WOLF: "WOLF",
   VILLAGER: "VILLAGER",
@@ -34,14 +36,14 @@ export const PHASES = {
   LYNCH: "LYNCH",
   RESERVE_A: "RESERVE_A",
   RESERVE_B: "RESERVE_B",
-  BITE: "BITE",
   GUARD: "GUARD",
+  BITE: "BITE",
   END: "END",
 };
 
 export const CONFIG = {
-  playerCount: 3,
-  slotCount: 10,
+  playerCount: 2,
+  slotCount: 18,
 
   humanPlayerId: 0,
   autoPlayers: true,
@@ -53,13 +55,14 @@ export const CONFIG = {
 
   defaultMode: MODES.WOLF,
 
-  hiddenDeck: [
-    ROLES.WOLF,
-    ROLES.WOLF,
-    ROLES.GUARD,
-    ROLES.VILLAGER,
-    ROLES.VILLAGER,
-    ROLES.VILLAGER,
-    ROLES.VILLAGER,
-  ],
+  // 非公開役職の枚数定義
+  hiddenRoleCounts: {
+    [ROLES.WOLF]: 3,
+    [ROLES.GUARD]: 1,
+    [ROLES.VILLAGER]: 11,
+  },
+
+  get hiddenDeck() {
+    return buildHiddenDeck(this.hiddenRoleCounts);
+  },
 };
