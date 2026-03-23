@@ -24,12 +24,7 @@ export function pickRandom(arr) {
 }
 
 export function roleChar(role) {
-  if (role === ROLES.WOLF) return "狼";
-  if (role === ROLES.SEER) return "占";
-  if (role === ROLES.MAD) return "狂";
-  if (role === ROLES.MEDIUM) return "霊";
-  if (role === ROLES.GUARD) return "狩";
-  return "村";
+  return roleLabel(role);
 }
 
 export function publicLabel(kind) {
@@ -48,7 +43,7 @@ export function fullRevealPublicLabel(slot) {
 }
 
 export function isWolf(role) {
-  return role === ROLES.WOLF;
+  return isWolfRole(role);
 }
 
 export function colorFromRole(role) {
