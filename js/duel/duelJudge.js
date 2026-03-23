@@ -1,11 +1,11 @@
+import { ROLES, DEATH } from "../config.js";
+import { hasAliveRole, pickRandom } from "../utils.js";
 import { canBeBitten, canGuardSelfTarget } from "../roles.js";
-import { CONFIG, MODES, ROLES, DEATH } from "../config.js";
 import {
-  countAliveWolves,
-  countAliveNonWolves,
-  hasAliveRole,
-  pickRandom,
-} from "../utils.js";
+  readBothPlayerStates,
+  resolveNewPendingFromStates,
+  resolveSettledPending,
+} from "./duelWin.js";
 
 export function clearRoundReservations(game) {
   for (const p of game.players) {
@@ -37,21 +37,6 @@ export function killSlot(game, playerId, slotIndex, reason, logPush) {
   );
 
   return true;
-}
-
-export function getDuelResultState(game, player) {
-  const wolves = countAliveWolves(player);
-  const nonWolves = countAliveNonWolves(player);
-
-  if (game.mode === MODES.WOLF) {
-    if (wolves === 0) return "LOSE";
-    if (wolves >= nonWolves && player.slots.some(s => !s.dead)) return "WIN";
-    return "NONE";
-  }
-
-  if (wolves === 0) return "WIN";
-  if (wolves >= nonWolves && player.slots.some(s => !s.dead)) return "LOSE";
-  return "NONE";
 }
 
 function setFinalPlayerResult(player, result) {
@@ -172,52 +157,44 @@ export function resolvePendingBites(game, logPush) {
   }
 }
 
-export function judgeAfterResolution(game, logPush) {
-  resolvePendingGuards(game, logPush);
-  resolvePendingBites(game, logPush);
-
-  const p0 = game.players[0];
-  const p1 = game.players[1];
-  const s0 = getDuelResultState(game, p0);
-  const s1 = getDuelResultState(game, p1);
-
+function resolveEndStateAfterResolution(game, logPush) {
   if (game.duelPendingResult) {
-    const pending = game.duelPendingResult;
-    const settlePlayer = game.players[pending.settleTurnPlayerId];
-    const settleState = getDuelResultState(game, settlePlayer);
+    const settled = resolveSettledPending(game);
 
-    if (settleState === pending.type) {
+    if (settled.kind === "DRAW") {
       finishGameAsDraw(game, logPush);
       return;
     }
 
-    finishGameByPending(game, pending, logPush);
+    if (settled.kind === "FINAL") {
+      finishGameByPending(game, settled.pending, logPush);
+      return;
+    }
+
     return;
   }
 
-  if (s0 !== "NONE" && s0 === s1) {
+  const { s0, s1 } = readBothPlayerStates(game);
+  const next = resolveNewPendingFromStates(s0, s1);
+
+  if (next.kind === "DRAW_NOW") {
     finishGameAsDraw(game, logPush);
     return;
   }
 
-  if (s0 !== "NONE") {
-    game.duelPendingResult = {
-      triggerPlayerId: 0,
-      opponentId: 1,
-      type: s0,
-      settleTurnPlayerId: 1,
-    };
-    logPush(game, `P1 ${s0 === "WIN" ? "勝利条件" : "敗北条件"}成立 / P2 に最終手番`);
-    return;
+  if (next.kind === "PENDING") {
+    game.duelPendingResult = next.pending;
+    const triggerId = next.pending.triggerPlayerId;
+    const settleId = next.pending.settleTurnPlayerId;
+    logPush(
+      game,
+      `P${triggerId + 1} ${next.pending.type === "WIN" ? "勝利条件" : "敗北条件"}成立 / P${settleId + 1} に最終手番`
+    );
   }
+}
 
-  if (s1 !== "NONE") {
-    game.duelPendingResult = {
-      triggerPlayerId: 1,
-      opponentId: 0,
-      type: s1,
-      settleTurnPlayerId: 0,
-    };
-    logPush(game, `P2 ${s1 === "WIN" ? "勝利条件" : "敗北条件"}成立 / P1 に最終手番`);
-  }
+export function judgeAfterResolution(game, logPush) {
+  resolvePendingGuards(game, logPush);
+  resolvePendingBites(game, logPush);
+  resolveEndStateAfterResolution(game, logPush);
 }
