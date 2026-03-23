@@ -1,3 +1,5 @@
+import { getSlotMark } from "./markUtils.js";
+import { MARK_KEYS } from "./markKeys.js";
 import { roleLabel, isWolfRole } from "./roles.js";
 import { CONFIG, ROLES, MARK, PUBLIC_KIND } from "./config.js";
 
@@ -140,9 +142,9 @@ export function judgeLineTrust(player) {
   let fixedFalse = null;
 
   for (const slot of player.slots) {
-    const a = slot.seerA;
-    const b = slot.seerB;
-    const m = slot.medium;
+    const a = getSlotMark(slot, MARK_KEYS.SEER_A);
+    const b = getSlotMark(slot, MARK_KEYS.SEER_B);
+    const m = getSlotMark(slot, MARK_KEYS.MEDIUM);
 
     const aBlack = a === MARK.BLACK;
     const aWhite = a === MARK.WHITE;
