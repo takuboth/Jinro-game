@@ -1,4 +1,5 @@
-import { CONFIG, ROLES, MARK, DEATH, PUBLIC_KIND, PHASES } from "../config.js";
+import { CONFIG, DEATH, PHASES } from "../config.js";
+import { buildPublicRoles } from "../publicRoles.js";
 import { makeEmptyMarks } from "../markUtils.js";
 import {
   shuffle,
@@ -9,37 +10,15 @@ import {
 } from "../utils.js";
 
 function makePublicSlots() {
-  const seerMad = shuffle([ROLES.SEER, ROLES.MAD]);
-
-  return [
-    {
-      role: seerMad[0],
-      isPublic: true,
-      publicKind: PUBLIC_KIND.A,
-      dead: false,
-      ...makeEmptyMarks(),
-      marks: makeEmptyMarks(),
-      deathReason: DEATH.NONE,
-    },
-    {
-      role: seerMad[1],
-      isPublic: true,
-      publicKind: PUBLIC_KIND.B,
-      dead: false,
-      ...makeEmptyMarks(),
-      marks: makeEmptyMarks(),
-      deathReason: DEATH.NONE,
-    },
-    {
-      role: ROLES.MEDIUM,
-      isPublic: true,
-      publicKind: PUBLIC_KIND.MEDIUM,
-      dead: false,
-      ...makeEmptyMarks(),
-      marks: makeEmptyMarks(),
-      deathReason: DEATH.NONE,
-    },
-  ];
+  return buildPublicRoles().map(def => ({
+    role: def.role,
+    isPublic: true,
+    publicKind: def.publicKind,
+    dead: false,
+    ...makeEmptyMarks(),
+    marks: makeEmptyMarks(),
+    deathReason: DEATH.NONE,
+  }));
 }
 
 function makeHiddenSlots() {
@@ -127,7 +106,7 @@ function setInitialReservationsForActor(game, actorId) {
 
   const trueCandidates = hidden.filter(x =>
     x.index !== fakePick.index &&
-    x.slot.role !== ROLES.WOLF
+    x.slot.role !== "WOLF"
   );
   if (!trueCandidates.length) return;
 
@@ -137,7 +116,7 @@ function setInitialReservationsForActor(game, actorId) {
   const trueKind = getTrueLineKind(targetPlayer);
   const fakeKind = getFakeLineKind(targetPlayer);
 
-  if (trueKind === PUBLIC_KIND.A) {
+  if (trueKind === "A") {
     actor.pendingA = { targetId, slotIndex: truePick.index };
     actor.seenA[truePick.index] = true;
   } else {
@@ -145,7 +124,7 @@ function setInitialReservationsForActor(game, actorId) {
     actor.seenB[truePick.index] = true;
   }
 
-  if (fakeKind === PUBLIC_KIND.A) {
+  if (fakeKind === "A") {
     actor.pendingA = { targetId, slotIndex: fakePick.index };
     actor.seenA[fakePick.index] = true;
   } else {
