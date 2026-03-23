@@ -1,4 +1,5 @@
 import { CONFIG, ROLES, MARK, DEATH, PUBLIC_KIND, PHASES } from "../config.js";
+import { makeEmptyMarks } from "../markUtils.js";
 import {
   shuffle,
   pickRandom,
@@ -16,9 +17,8 @@ function makePublicSlots() {
       isPublic: true,
       publicKind: PUBLIC_KIND.A,
       dead: false,
-      seerA: MARK.NONE,
-      seerB: MARK.NONE,
-      medium: MARK.NONE,
+      ...makeEmptyMarks(),
+      marks: makeEmptyMarks(),
       deathReason: DEATH.NONE,
     },
     {
@@ -26,9 +26,8 @@ function makePublicSlots() {
       isPublic: true,
       publicKind: PUBLIC_KIND.B,
       dead: false,
-      seerA: MARK.NONE,
-      seerB: MARK.NONE,
-      medium: MARK.NONE,
+      ...makeEmptyMarks(),
+      marks: makeEmptyMarks(),
       deathReason: DEATH.NONE,
     },
     {
@@ -36,9 +35,8 @@ function makePublicSlots() {
       isPublic: true,
       publicKind: PUBLIC_KIND.MEDIUM,
       dead: false,
-      seerA: MARK.NONE,
-      seerB: MARK.NONE,
-      medium: MARK.NONE,
+      ...makeEmptyMarks(),
+      marks: makeEmptyMarks(),
       deathReason: DEATH.NONE,
     },
   ];
@@ -51,9 +49,8 @@ function makeHiddenSlots() {
     isPublic: false,
     publicKind: null,
     dead: false,
-    seerA: MARK.NONE,
-    seerB: MARK.NONE,
-    medium: MARK.NONE,
+    ...makeEmptyMarks(),
+    marks: makeEmptyMarks(),
     deathReason: DEATH.NONE,
   }));
 }
