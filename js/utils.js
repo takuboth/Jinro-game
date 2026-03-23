@@ -251,8 +251,8 @@ export function getPreferredSeerKind(player) {
 }
 
 export function classifySlotForLynch(slot, trust, mediumAlive = false) {
-  const a = slot.seerA;
-  const b = slot.seerB;
+  const a = getSlotMark(slot, MARK_KEYS.SEER_A);
+  const b = getSlotMark(slot, MARK_KEYS.SEER_B);
 
   const aBlack = a === MARK.BLACK;
   const aWhite = a === MARK.WHITE;
@@ -356,8 +356,8 @@ export function pickCpuReserveTarget(player, seenMap, otherReservedIndex = null)
   ];
 
   const classify = (slot) => {
-    const a = slot.seerA;
-    const b = slot.seerB;
+    const a = getSlotMark(slot, MARK_KEYS.SEER_A);
+    const b = getSlotMark(slot, MARK_KEYS.SEER_B);
     const blackCount = (a === MARK.BLACK ? 1 : 0) + (b === MARK.BLACK ? 1 : 0);
     const whiteCount = (a === MARK.WHITE ? 1 : 0) + (b === MARK.WHITE ? 1 : 0);
 
@@ -382,8 +382,8 @@ export function pickCpuReserveTarget(player, seenMap, otherReservedIndex = null)
 }
 
 function classifyProtectTarget(slot, trust) {
-  const a = slot.seerA;
-  const b = slot.seerB;
+  const a = getSlotMark(slot, MARK_KEYS.SEER_A);
+  const b = getSlotMark(slot, MARK_KEYS.SEER_B);
 
   const aBlack = a === MARK.BLACK;
   const aWhite = a === MARK.WHITE;
