@@ -224,8 +224,8 @@ export function hasSplitWithLiveMedium(player) {
   if (!isLineAlive(player, PUBLIC_KIND.MEDIUM)) return false;
 
   return player.slots.some(slot => {
-    const a = slot.seerA;
-    const b = slot.seerB;
+    const a = getSlotMark(slot, MARK_KEYS.SEER_A);
+    const b = getSlotMark(slot, MARK_KEYS.SEER_B);
     return (
       (a === MARK.WHITE && b === MARK.BLACK) ||
       (a === MARK.BLACK && b === MARK.WHITE)
@@ -420,31 +420,6 @@ function classifyProtectTarget(slot, trust) {
   if (aBlack && bBlack) return "BLACK";
 
   return "GRAY";
-}
-
-function lastLynchWasSplit(game) {
-  if (!game.lastLynchedSlot) return false;
-
-  const slot = game.lastLynchedSlot;
-  const a = slot.seerA;
-  const b = slot.seerB;
-
-  return (
-    (a === MARK.WHITE && b === MARK.BLACK) ||
-    (a === MARK.BLACK && b === MARK.WHITE)
-  );
-}
-
-function existDoubleBlack(players) {
-  for (const p of players) {
-    for (const s of p.slots) {
-      if (s.dead) continue;
-      if (s.seerA === MARK.BLACK && s.seerB === MARK.BLACK) {
-        return true;
-      }
-    }
-  }
-  return false;
 }
 
 function getBitePriorityClasses(player) {
