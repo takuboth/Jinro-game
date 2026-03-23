@@ -55,11 +55,28 @@ export const CONFIG = {
 
   defaultMode: MODES.WOLF,
 
-  // 非公開役職の枚数定義
   hiddenRoleCounts: {
     [ROLES.WOLF]: 3,
     [ROLES.GUARD]: 1,
     [ROLES.VILLAGER]: 11,
+  },
+
+  // 将来、モード別にフローを変えたくなった時の入口
+  flowByMode: {
+    [MODES.WOLF]: [
+      PHASES.LYNCH,
+      PHASES.RESERVE_A,
+      PHASES.RESERVE_B,
+      PHASES.GUARD,
+      PHASES.BITE,
+    ],
+    [MODES.VILLAGER]: [
+      PHASES.LYNCH,
+      PHASES.RESERVE_A,
+      PHASES.RESERVE_B,
+      PHASES.GUARD,
+      PHASES.BITE,
+    ],
   },
 
   get hiddenDeck() {
