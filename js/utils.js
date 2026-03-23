@@ -1,3 +1,4 @@
+import { CPU_RULES } from "./cpuRules.js";
 import { getSlotMark } from "./markUtils.js";
 import { MARK_KEYS } from "./markKeys.js";
 import {
@@ -328,19 +329,7 @@ export function pickCpuLynchTarget(player) {
   const trust = judgeLineTrust(player);
   const mediumAlive = isLineAlive(player, PUBLIC_KIND.MEDIUM);
 
-  const priority = [
-    "CERT_BLACK",
-    "SPLIT_MEDIUM_ON",
-    "HALF_BLACK_HIGH",
-    "HALF_BLACK_FLAT",
-    "HALF_BLACK_LOW",
-    "SPLIT_MEDIUM_OFF",
-    "GRAY",
-    "HALF_WHITE_LOW",
-    "HALF_WHITE_FLAT",
-    "HALF_WHITE_HIGH",
-    "CERT_WHITE",
-  ];
+  const priority = CPU_RULES.LYNCH.priority;
 
   return pickByPriorityGroups(
     alive,
@@ -354,12 +343,7 @@ export function pickCpuReserveTarget(player, seenMap, otherReservedIndex = null)
   const unseen = hiddenReserveCandidates(player, seenMap);
   if (!unseen.length) return null;
 
-  const priority = [
-    "HALF_BLACK",
-    "GRAY",
-    "HALF_WHITE",
-    "CERT_WHITE",
-  ];
+  const priority = CPU_RULES.RESERVE.priority;
 
   const classify = (slot) => {
     const a = getSlotMark(slot, MARK_KEYS.SEER_A);
@@ -428,61 +412,18 @@ function classifyProtectTarget(slot, trust) {
   return "GRAY";
 }
 
-function getBitePriorityClasses(player) {
-  // 白黒があり、しかも霊媒が生きてる → 霊媒最優先
+function getBitePriority(player) {
   if (hasSplitWithLiveMedium(player)) {
-    return [
-      "MEDIUM",
-      "SEER_FLAT",
-      "SEER_HIGH",
-      "SEER_LOW",
-      "CERT_WHITE",
-      "HALF_WHITE",
-      "GRAY",
-      "HALF_BLACK",
-      "BLACK",
-    ];
+    return CPU_RULES.BITE.pattern.SPLIT_MEDIUM;
   }
 
-  // 高信頼占いが立っている → 占い最優先
   if (hasHighTrustSeer(player)) {
-    return [
-      "SEER_HIGH",
-      "MEDIUM",
-      "SEER_FLAT",
-      "SEER_LOW",
-      "CERT_WHITE",
-      "HALF_WHITE",
-      "GRAY",
-      "HALF_BLACK",
-      "BLACK",
-    ];
+    return CPU_RULES.BITE.pattern.HIGH_SEER;
   }
 
-  // 通常時は霊媒 / 占いフラット
   return Math.random() < 0.5
-    ? [
-        "MEDIUM",
-        "SEER_FLAT",
-        "SEER_HIGH",
-        "SEER_LOW",
-        "CERT_WHITE",
-        "HALF_WHITE",
-        "GRAY",
-        "HALF_BLACK",
-        "BLACK",
-      ]
-    : [
-        "SEER_FLAT",
-        "MEDIUM",
-        "SEER_HIGH",
-        "SEER_LOW",
-        "CERT_WHITE",
-        "HALF_WHITE",
-        "GRAY",
-        "HALF_BLACK",
-        "BLACK",
-      ];
+    ? CPU_RULES.BITE.pattern.NORMAL_A
+    : CPU_RULES.BITE.pattern.NORMAL_B;
 }
 
 function pickFromTopPriorityOnly(cands, classifyFn, priority) {
@@ -495,61 +436,18 @@ function pickFromTopPriorityOnly(cands, classifyFn, priority) {
   return null;
 }
 
-function getGuardPriorityClasses(player) {
-  // 白黒があり、しかも霊媒が生きてる → 霊媒守り最優先
+function getGuardPriority(player) {
   if (hasSplitWithLiveMedium(player)) {
-    return [
-      "MEDIUM",
-      "SEER_FLAT",
-      "SEER_HIGH",
-      "SEER_LOW",
-      "CERT_WHITE",
-      "HALF_WHITE",
-      "GRAY",
-      "HALF_BLACK",
-      "BLACK",
-    ];
+    return CPU_RULES.GUARD.pattern.SPLIT_MEDIUM;
   }
 
-  // 高信頼占いが立っている → 占い守り最優先
   if (hasHighTrustSeer(player)) {
-    return [
-      "SEER_HIGH",
-      "MEDIUM",
-      "SEER_FLAT",
-      "SEER_LOW",
-      "CERT_WHITE",
-      "HALF_WHITE",
-      "GRAY",
-      "HALF_BLACK",
-      "BLACK",
-    ];
+    return CPU_RULES.GUARD.pattern.HIGH_SEER;
   }
 
-  // 通常時はフラット
   return Math.random() < 0.5
-    ? [
-        "MEDIUM",
-        "SEER_FLAT",
-        "SEER_HIGH",
-        "SEER_LOW",
-        "CERT_WHITE",
-        "HALF_WHITE",
-        "GRAY",
-        "HALF_BLACK",
-        "BLACK",
-      ]
-    : [
-        "SEER_FLAT",
-        "MEDIUM",
-        "SEER_HIGH",
-        "SEER_LOW",
-        "CERT_WHITE",
-        "HALF_WHITE",
-        "GRAY",
-        "HALF_BLACK",
-        "BLACK",
-      ];
+    ? CPU_RULES.GUARD.pattern.NORMAL_A
+    : CPU_RULES.GUARD.pattern.NORMAL_B;
 }
 
 export function pickCpuBiteTarget(targetPlayer, game) {
@@ -557,7 +455,7 @@ export function pickCpuBiteTarget(targetPlayer, game) {
   if (!cands.length) return null;
 
   const trust = judgeLineTrust(targetPlayer);
-  const priority = getBitePriorityClasses(targetPlayer);
+  const priority = getBitePriority(targetPlayer);
 
   return pickFromTopPriorityOnly(
     cands,
@@ -571,7 +469,7 @@ export function pickCpuGuardTarget(targetPlayer, game) {
   if (!cands.length) return null;
 
   const trust = judgeLineTrust(targetPlayer);
-  const priority = getGuardPriorityClasses(targetPlayer);
+  const priority = getGuardPriority(targetPlayer);
 
   return pickFromTopPriorityOnly(
     cands,
