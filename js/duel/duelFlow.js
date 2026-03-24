@@ -255,7 +255,7 @@ export function cpuDoOneImmediate(game, logPush) {
   const biteTargetId = getBiteTargetId(game, actorId);
 
   if (game.phase === PHASES.LYNCH) {
-    const pick = pickCpuLynchTarget(game.players[lynchTargetId]);
+    const pick = pickCpuLynchTarget(game.players[lynchTargetId], game);
     if (pick == null) {
       logPush(game, `CPU P${actorId + 1} 吊り → 対象なし`);
       advancePhase(game, logPush);
@@ -274,7 +274,7 @@ export function cpuDoOneImmediate(game, logPush) {
     }
 
     const alreadyB = actor.pendingB?.slotIndex ?? null;
-    const pick = pickCpuReserveTarget(target, actor.seenA, alreadyB);
+    const pick = pickCpuReserveTarget(target, actor.seenA, alreadyB, game);
 
     if (pick == null) {
       logPush(game, `CPU P${actorId + 1} 占A予約 → 対象なし`);
@@ -294,7 +294,7 @@ export function cpuDoOneImmediate(game, logPush) {
     }
 
     const alreadyA = actor.pendingA?.slotIndex ?? null;
-    const pick = pickCpuReserveTarget(target, actor.seenB, alreadyA);
+    const pick = pickCpuReserveTarget(target, actor.seenB, alreadyA, game);
 
     if (pick == null) {
       logPush(game, `CPU P${actorId + 1} 占B予約 → 対象なし`);
