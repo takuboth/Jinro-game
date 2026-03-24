@@ -1,4 +1,3 @@
-import { CPU_RULES } from "./cpuRules.js";
 import { getSlotMark } from "./markUtils.js";
 import { MARK_KEYS } from "./markKeys.js";
 import {
@@ -7,7 +6,9 @@ import {
   countsAsWolf,
   canBeBitten,
   canGuardSelfTarget,
+  isFoxRole,
 } from "./roles.js";
+import { CPU_RULES } from "./cpuRules.js";
 import { CONFIG, ROLES, MARK, PUBLIC_KIND } from "./config.js";
 
 export function nowStamp() {
@@ -53,6 +54,10 @@ export function fullRevealPublicLabel(slot) {
 
 export function isWolf(role) {
   return isWolfRole(role);
+}
+
+export function isFox(role) {
+  return isFoxRole(role);
 }
 
 export function colorFromRole(role) {
@@ -102,6 +107,10 @@ export function countAliveWolves(player) {
 
 export function countAliveNonWolves(player) {
   return player.slots.filter(s => !s.dead && !countsAsWolf(s.role)).length;
+}
+
+export function countAliveFoxes(player) {
+  return player.slots.filter(s => !s.dead && isFox(s.role)).length;
 }
 
 export function isLineAlive(player, kind) {
@@ -242,10 +251,7 @@ export function hasSplitWithLiveMedium(player) {
 
 export function hasHighTrustSeer(player) {
   const trust = judgeLineTrust(player);
-
-  // 確定真、または片黒霊黒などで大きく優勢
   if (trust.fixedTrue) return true;
-
   const diff = Math.abs(trust.trustA - trust.trustB);
   return diff >= 80;
 }
@@ -267,6 +273,8 @@ export function classifySlotForLynch(slot, trust, mediumAlive = false) {
   const bWhite = b === MARK.WHITE;
 
   const trueLike = trust.trueLike;
+
+  if (isFox(slot.role)) return "FOX";
 
   if (aBlack && bBlack) return "CERT_BLACK";
 
@@ -328,7 +336,6 @@ export function pickCpuLynchTarget(player) {
 
   const trust = judgeLineTrust(player);
   const mediumAlive = isLineAlive(player, PUBLIC_KIND.MEDIUM);
-
   const priority = CPU_RULES.LYNCH.priority;
 
   return pickByPriorityGroups(
@@ -346,6 +353,8 @@ export function pickCpuReserveTarget(player, seenMap, otherReservedIndex = null)
   const priority = CPU_RULES.RESERVE.priority;
 
   const classify = (slot) => {
+    if (isFox(slot.role)) return "FOX";
+
     const a = getSlotMark(slot, MARK_KEYS.SEER_A);
     const b = getSlotMark(slot, MARK_KEYS.SEER_B);
     const blackCount = (a === MARK.BLACK ? 1 : 0) + (b === MARK.BLACK ? 1 : 0);
@@ -382,7 +391,6 @@ function classifyProtectTarget(slot, trust) {
 
   const trueLike = trust.trueLike;
 
-  // 占い
   if (slot.isPublic && (slot.publicKind === PUBLIC_KIND.A || slot.publicKind === PUBLIC_KIND.B)) {
     if (trueLike === "A" && slot.publicKind === PUBLIC_KIND.A) return "SEER_HIGH";
     if (trueLike === "B" && slot.publicKind === PUBLIC_KIND.B) return "SEER_HIGH";
@@ -393,12 +401,12 @@ function classifyProtectTarget(slot, trust) {
     return "SEER_FLAT";
   }
 
-  // 霊媒
   if (slot.isPublic && slot.publicKind === PUBLIC_KIND.MEDIUM) {
     return "MEDIUM";
   }
 
-  // 確定白
+  if (isFox(slot.role)) return "FOX";
+
   if (aWhite && bWhite) return "CERT_WHITE";
 
   const blackCount = (aBlack ? 1 : 0) + (bBlack ? 1 : 0);
@@ -410,6 +418,16 @@ function classifyProtectTarget(slot, trust) {
   if (aBlack && bBlack) return "BLACK";
 
   return "GRAY";
+}
+
+function pickFromTopPriorityOnly(cands, classifyFn, priority) {
+  for (const cls of priority) {
+    const hits = cands.filter(x => classifyFn(x.slot, x) === cls);
+    if (hits.length) {
+      return pickRandom(hits)?.index ?? null;
+    }
+  }
+  return null;
 }
 
 function getBitePriority(player) {
@@ -424,16 +442,6 @@ function getBitePriority(player) {
   return Math.random() < 0.5
     ? CPU_RULES.BITE.pattern.NORMAL_A
     : CPU_RULES.BITE.pattern.NORMAL_B;
-}
-
-function pickFromTopPriorityOnly(cands, classifyFn, priority) {
-  for (const cls of priority) {
-    const hits = cands.filter(x => classifyFn(x.slot, x) === cls);
-    if (hits.length) {
-      return pickRandom(hits)?.index ?? null;
-    }
-  }
-  return null;
 }
 
 function getGuardPriority(player) {
