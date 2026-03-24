@@ -1,4 +1,4 @@
-import { CONFIG, DEATH, PHASES } from "../config.js";
+import { CONFIG, DEATH, PHASES, ROLES, PUBLIC_KIND } from "../config.js";
 import { buildPublicRoles } from "../publicRoles.js";
 import { makeEmptyMarks } from "../markUtils.js";
 import {
@@ -15,23 +15,37 @@ function makePublicSlots() {
     isPublic: true,
     publicKind: def.publicKind,
     dead: false,
+    foxPairKey: null,
     ...makeEmptyMarks(),
     marks: makeEmptyMarks(),
     deathReason: DEATH.NONE,
   }));
 }
 
-function makeHiddenSlots() {
+function makeHiddenSlots(playerId) {
   const deck = shuffle(CONFIG.hiddenDeck);
-  return deck.map(role => ({
-    role,
-    isPublic: false,
-    publicKind: null,
-    dead: false,
-    ...makeEmptyMarks(),
-    marks: makeEmptyMarks(),
-    deathReason: DEATH.NONE,
-  }));
+
+  let foxAssigned = false;
+
+  return deck.map(role => {
+    const slot = {
+      role,
+      isPublic: false,
+      publicKind: null,
+      dead: false,
+      foxPairKey: null,
+      ...makeEmptyMarks(),
+      marks: makeEmptyMarks(),
+      deathReason: DEATH.NONE,
+    };
+
+    if (role === ROLES.FOX && !foxAssigned) {
+      slot.foxPairKey = "FOX_PAIR_1";
+      foxAssigned = true;
+    }
+
+    return slot;
+  });
 }
 
 export function makePlayer(id) {
@@ -41,7 +55,7 @@ export function makePlayer(id) {
     escaped: false,
     resultText: "",
 
-    slots: [...makePublicSlots(), ...makeHiddenSlots()],
+    slots: [...makePublicSlots(), ...makeHiddenSlots(id)],
 
     seenA: makeEmptySeenMap(),
     seenB: makeEmptySeenMap(),
@@ -106,7 +120,7 @@ function setInitialReservationsForActor(game, actorId) {
 
   const trueCandidates = hidden.filter(x =>
     x.index !== fakePick.index &&
-    x.slot.role !== "WOLF"
+    x.slot.role !== ROLES.WOLF
   );
   if (!trueCandidates.length) return;
 
@@ -116,7 +130,7 @@ function setInitialReservationsForActor(game, actorId) {
   const trueKind = getTrueLineKind(targetPlayer);
   const fakeKind = getFakeLineKind(targetPlayer);
 
-  if (trueKind === "A") {
+  if (trueKind === PUBLIC_KIND.A) {
     actor.pendingA = { targetId, slotIndex: truePick.index };
     actor.seenA[truePick.index] = true;
   } else {
@@ -124,7 +138,7 @@ function setInitialReservationsForActor(game, actorId) {
     actor.seenB[truePick.index] = true;
   }
 
-  if (fakeKind === "A") {
+  if (fakeKind === PUBLIC_KIND.A) {
     actor.pendingA = { targetId, slotIndex: fakePick.index };
     actor.seenA[fakePick.index] = true;
   } else {
