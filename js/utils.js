@@ -113,6 +113,10 @@ export function countAliveFoxes(player) {
   return player.slots.filter(s => !s.dead && isFox(s.role)).length;
 }
 
+export function isAnyFoxAlive(game) {
+  return game.players.some(player => countAliveFoxes(player) > 0);
+}
+
 export function isLineAlive(player, kind) {
   const idx = getPublicSlotIndexByKind(player, kind);
   if (idx == null) return false;
@@ -263,6 +267,30 @@ export function getPreferredSeerKind(player) {
   return null;
 }
 
+export function hasBlackReserve(player) {
+  const trust = judgeLineTrust(player);
+
+  return player.slots.some(slot => {
+    if (slot.dead) return false;
+    if (isFox(slot.role)) return false;
+
+    const a = getSlotMark(slot, MARK_KEYS.SEER_A);
+    const b = getSlotMark(slot, MARK_KEYS.SEER_B);
+
+    const aBlack = a === MARK.BLACK;
+    const bBlack = b === MARK.BLACK;
+
+    // 確定黒
+    if (aBlack && bBlack) return true;
+
+    // 真占い寄りの単黒
+    if (trust.trueLike === "A" && aBlack && !bBlack) return true;
+    if (trust.trueLike === "B" && bBlack && !aBlack) return true;
+
+    return false;
+  });
+}
+
 export function classifySlotForLynch(slot, trust, mediumAlive = false) {
   const a = getSlotMark(slot, MARK_KEYS.SEER_A);
   const b = getSlotMark(slot, MARK_KEYS.SEER_B);
@@ -274,7 +302,7 @@ export function classifySlotForLynch(slot, trust, mediumAlive = false) {
 
   const trueLike = trust.trueLike;
 
-  if (isFox(slot.role)) return "FOX";
+  if (isFox(slot.role)) return "FOX_HIT";
 
   if (aBlack && bBlack) return "CERT_BLACK";
 
@@ -330,13 +358,20 @@ function pickByPriorityGroups(cands, classifyFn, priority, preferHidden = false)
   return null;
 }
 
-export function pickCpuLynchTarget(player) {
+export function pickCpuLynchTarget(player, game) {
   const alive = getAliveSlots(player);
   if (!alive.length) return null;
 
   const trust = judgeLineTrust(player);
   const mediumAlive = isLineAlive(player, PUBLIC_KIND.MEDIUM);
-  const priority = CPU_RULES.LYNCH.priority;
+
+  let priority = CPU_RULES.LYNCH.NORMAL;
+
+  if (game && isAnyFoxAlive(game)) {
+    priority = hasBlackReserve(player)
+      ? CPU_RULES.LYNCH.FOX_ALIVE_WITH_BLACK_RESERVE
+      : CPU_RULES.LYNCH.FOX_ALIVE_NO_BLACK_RESERVE;
+  }
 
   return pickByPriorityGroups(
     alive,
@@ -346,14 +381,17 @@ export function pickCpuLynchTarget(player) {
   );
 }
 
-export function pickCpuReserveTarget(player, seenMap, otherReservedIndex = null) {
+export function pickCpuReserveTarget(player, seenMap, otherReservedIndex = null, game = null) {
   const unseen = hiddenReserveCandidates(player, seenMap);
   if (!unseen.length) return null;
 
-  const priority = CPU_RULES.RESERVE.priority;
+  const priority =
+    game && isAnyFoxAlive(game)
+      ? CPU_RULES.RESERVE.FOX_ALIVE
+      : CPU_RULES.RESERVE.NORMAL;
 
   const classify = (slot) => {
-    if (isFox(slot.role)) return "FOX";
+    if (isFox(slot.role)) return "FOX_HIT";
 
     const a = getSlotMark(slot, MARK_KEYS.SEER_A);
     const b = getSlotMark(slot, MARK_KEYS.SEER_B);
@@ -430,32 +468,36 @@ function pickFromTopPriorityOnly(cands, classifyFn, priority) {
   return null;
 }
 
-function getBitePriority(player) {
+function getBitePriority(player, game) {
+  if (game && isAnyFoxAlive(game)) {
+    return CPU_RULES.BITE.FOX_ALIVE;
+  }
+
   if (hasSplitWithLiveMedium(player)) {
-    return CPU_RULES.BITE.pattern.SPLIT_MEDIUM;
+    return CPU_RULES.BITE.SPLIT_MEDIUM;
   }
 
   if (hasHighTrustSeer(player)) {
-    return CPU_RULES.BITE.pattern.HIGH_SEER;
+    return CPU_RULES.BITE.HIGH_SEER;
   }
 
   return Math.random() < 0.5
-    ? CPU_RULES.BITE.pattern.NORMAL_A
-    : CPU_RULES.BITE.pattern.NORMAL_B;
+    ? CPU_RULES.BITE.NORMAL_A
+    : CPU_RULES.BITE.NORMAL_B;
 }
 
 function getGuardPriority(player) {
   if (hasSplitWithLiveMedium(player)) {
-    return CPU_RULES.GUARD.pattern.SPLIT_MEDIUM;
+    return CPU_RULES.GUARD.SPLIT_MEDIUM;
   }
 
   if (hasHighTrustSeer(player)) {
-    return CPU_RULES.GUARD.pattern.HIGH_SEER;
+    return CPU_RULES.GUARD.HIGH_SEER;
   }
 
   return Math.random() < 0.5
-    ? CPU_RULES.GUARD.pattern.NORMAL_A
-    : CPU_RULES.GUARD.pattern.NORMAL_B;
+    ? CPU_RULES.GUARD.NORMAL_A
+    : CPU_RULES.GUARD.NORMAL_B;
 }
 
 export function pickCpuBiteTarget(targetPlayer, game) {
@@ -463,7 +505,7 @@ export function pickCpuBiteTarget(targetPlayer, game) {
   if (!cands.length) return null;
 
   const trust = judgeLineTrust(targetPlayer);
-  const priority = getBitePriority(targetPlayer);
+  const priority = getBitePriority(targetPlayer, game);
 
   return pickFromTopPriorityOnly(
     cands,
