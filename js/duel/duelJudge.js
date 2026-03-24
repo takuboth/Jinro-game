@@ -1,6 +1,6 @@
 import { ROLES, DEATH } from "../config.js";
 import { hasAliveRole, pickRandom } from "../utils.js";
-import { canBeBitten, canGuardSelfTarget } from "../roles.js";
+import { canBeBitten, canGuardSelfTarget, isFoxRole } from "../roles.js";
 import {
   readBothPlayerStates,
   resolveNewPendingFromStates,
@@ -21,6 +21,23 @@ export function clearOnFinish(player) {
   player.guardIncomingSlot = null;
 }
 
+function killLinkedFox(game, foxPairKey, sourcePlayerId, sourceSlotIndex, logPush) {
+  if (!foxPairKey) return;
+
+  for (const player of game.players) {
+    for (let i = 0; i < player.slots.length; i++) {
+      const slot = player.slots[i];
+      if (slot.dead) continue;
+      if (slot.foxPairKey !== foxPairKey) continue;
+      if (player.id === sourcePlayerId && i === sourceSlotIndex) continue;
+
+      slot.dead = true;
+      slot.deathReason = DEATH.FOX_LINK;
+      logPush(game, `P${player.id + 1} S${i + 1} 妖狐連動死亡`);
+    }
+  }
+}
+
 export function killSlot(game, playerId, slotIndex, reason, logPush) {
   const player = game.players[playerId];
   if (!player.alive) return false;
@@ -31,10 +48,17 @@ export function killSlot(game, playerId, slotIndex, reason, logPush) {
   slot.dead = true;
   slot.deathReason = reason;
 
-  logPush(
-    game,
-    `P${playerId + 1} S${slotIndex + 1} ${reason === DEATH.LYNCH ? "吊り死亡" : "噛み死亡"}`
-  );
+  const label =
+    reason === DEATH.LYNCH ? "吊り死亡" :
+    reason === DEATH.BITE ? "噛み死亡" :
+    reason === DEATH.SEER_KILL ? "占い死亡" :
+    "死亡";
+
+  logPush(game, `P${playerId + 1} S${slotIndex + 1} ${label}`);
+
+  if (isFoxRole(slot.role)) {
+    killLinkedFox(game, slot.foxPairKey, playerId, slotIndex, logPush);
+  }
 
   return true;
 }
@@ -80,6 +104,19 @@ function finishGameByPending(game, pending, logPush) {
     game,
     `ゲーム終了 / 勝者: ${game.winners.length ? game.winners.map(id => `P${id + 1}`).join(", ") : "なし"}`
   );
+}
+
+function finishGameAsDoubleLose(game, logPush) {
+  for (const p of game.players) {
+    p.alive = false;
+    p.escaped = false;
+    p.resultText = "LOSE";
+    clearOnFinish(p);
+  }
+
+  game.winners = [];
+  game.over = true;
+  logPush(game, "妖狐生存により両者敗北 / ゲーム終了");
 }
 
 function resolveGuardSlotIndex(targetPlayer, requestedSlotIndex) {
@@ -161,6 +198,11 @@ function resolveEndStateAfterResolution(game, logPush) {
   if (game.duelPendingResult) {
     const settled = resolveSettledPending(game);
 
+    if (settled.kind === "DOUBLE_LOSE") {
+      finishGameAsDoubleLose(game, logPush);
+      return;
+    }
+
     if (settled.kind === "DRAW") {
       finishGameAsDraw(game, logPush);
       return;
@@ -174,8 +216,13 @@ function resolveEndStateAfterResolution(game, logPush) {
     return;
   }
 
-  const { s0, s1 } = readBothPlayerStates(game);
-  const next = resolveNewPendingFromStates(s0, s1);
+  const { s0, s1, foxAlive } = readBothPlayerStates(game);
+  const next = resolveNewPendingFromStates(s0, s1, foxAlive);
+
+  if (next.kind === "DOUBLE_LOSE") {
+    finishGameAsDoubleLose(game, logPush);
+    return;
+  }
 
   if (next.kind === "DRAW_NOW") {
     finishGameAsDraw(game, logPush);
