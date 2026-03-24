@@ -7,7 +7,7 @@ export {
   getGuardTargetId,
   getBiteTargetId,
   canAbsentOk,
-  doAbsentOk,
+  doAbsentOkWrapped as doAbsentOk,
   isHumanTurn,
   cpuDoOneImmediateWrapped as cpuDoOneImmediate,
   runAutoUntilHumanTurn,
