@@ -1,5 +1,5 @@
 import { MODES } from "../config.js";
-import { countAliveWolves, countAliveNonWolves } from "../utils.js";
+import { countAliveWolves, countAliveNonWolves, countAliveFoxes } from "../utils.js";
 
 export function getDuelResultState(game, player) {
   const wolves = countAliveWolves(player);
@@ -25,6 +25,7 @@ export function readBothPlayerStates(game) {
     p1,
     s0: getDuelResultState(game, p0),
     s1: getDuelResultState(game, p1),
+    foxAlive: countAliveFoxes(p0) > 0 || countAliveFoxes(p1) > 0,
   };
 }
 
@@ -41,7 +42,13 @@ export function shouldFinishAsDrawFromStates(s0, s1) {
   return s0 !== "NONE" && s0 === s1;
 }
 
-export function resolveNewPendingFromStates(s0, s1) {
+export function resolveNewPendingFromStates(s0, s1, foxAlive) {
+  if (s0 !== "NONE" || s1 !== "NONE") {
+    if (foxAlive) {
+      return { kind: "DOUBLE_LOSE" };
+    }
+  }
+
   if (shouldFinishAsDrawFromStates(s0, s1)) {
     return { kind: "DRAW_NOW" };
   }
@@ -71,6 +78,14 @@ export function resolveSettledPending(game) {
 
   const settlePlayer = game.players[pending.settleTurnPlayerId];
   const settleState = getDuelResultState(game, settlePlayer);
+
+  const foxAlive =
+    countAliveFoxes(game.players[0]) > 0 ||
+    countAliveFoxes(game.players[1]) > 0;
+
+  if ((settleState !== "NONE" || pending.type !== "NONE") && foxAlive) {
+    return { kind: "DOUBLE_LOSE" };
+  }
 
   if (settleState === pending.type) {
     return { kind: "DRAW" };
