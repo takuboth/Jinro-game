@@ -1,6 +1,7 @@
-import { MARK, PUBLIC_KIND } from "../config.js";
+import { MARK, PUBLIC_KIND, DEATH } from "../config.js";
 import { MARK_KEYS } from "../markKeys.js";
 import { getSlotMark, setSlotMark } from "../markUtils.js";
+import { isFoxRole } from "../roles.js";
 import {
   colorFromRole,
   getTrueLineKind,
@@ -8,6 +9,35 @@ import {
   isLineAlive,
   sameTarget,
 } from "../utils.js";
+
+function killLinkedFoxByPair(game, foxPairKey, sourcePlayerId, sourceSlotIndex, logPush) {
+  if (!foxPairKey) return;
+
+  for (const player of game.players) {
+    for (let i = 0; i < player.slots.length; i++) {
+      const slot = player.slots[i];
+      if (slot.dead) continue;
+      if (slot.foxPairKey !== foxPairKey) continue;
+      if (player.id === sourcePlayerId && i === sourceSlotIndex) continue;
+
+      slot.dead = true;
+      slot.deathReason = DEATH.FOX_LINK;
+      logPush(game, `P${player.id + 1} S${i + 1} 妖狐連動死亡`);
+    }
+  }
+}
+
+function killFoxBySeer(game, playerId, slotIndex, logPush) {
+  const player = game.players[playerId];
+  const slot = player?.slots?.[slotIndex];
+  if (!player || !slot || slot.dead || !isFoxRole(slot.role)) return;
+
+  slot.dead = true;
+  slot.deathReason = DEATH.SEER_KILL;
+  logPush(game, `P${playerId + 1} S${slotIndex + 1} 妖狐が占いで死亡`);
+
+  killLinkedFoxByPair(game, slot.foxPairKey, playerId, slotIndex, logPush);
+}
 
 export function revealPendingReportsForActor(game, actorId, logPush, getReserveTargetId) {
   const actor = game.players[actorId];
@@ -40,6 +70,10 @@ export function revealPendingReportsForActor(game, actorId, logPush, getReserveT
     const tgtPlayer = game.players[truePending.targetId];
     const tgtSlot = tgtPlayer?.slots?.[truePending.slotIndex];
     if (tgtSlot) {
+      if (isFoxRole(tgtSlot.role)) {
+        killFoxBySeer(game, truePending.targetId, truePending.slotIndex, logPush);
+      }
+
       trueColor = colorFromRole(tgtSlot.role);
 
       if (trueKind === PUBLIC_KIND.A) {
