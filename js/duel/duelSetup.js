@@ -120,7 +120,8 @@ function setInitialReservationsForActor(game, actorId) {
 
   const trueCandidates = hidden.filter(x =>
     x.index !== fakePick.index &&
-    x.slot.role !== ROLES.WOLF
+    x.slot.role !== ROLES.WOLF &&
+    x.slot.role !== ROLES.FOX
   );
   if (!trueCandidates.length) return;
 
