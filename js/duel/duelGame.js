@@ -41,9 +41,12 @@ export {
   getGuardTargetId,
   getBiteTargetId,
   canAbsentOk,
-  doAbsentOk,
   isHumanTurn,
 };
+
+export function doAbsentOkWrapped(game) {
+  return doAbsentOk(game, logPush);
+}
 
 export function cpuDoOneImmediateWrapped(game) {
   return cpuDoOneImmediate(game, logPush);
