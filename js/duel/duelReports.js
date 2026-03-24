@@ -34,7 +34,7 @@ function killFoxBySeer(game, playerId, slotIndex, logPush) {
 
   slot.dead = true;
   slot.deathReason = DEATH.SEER_KILL;
-  logPush(game, `P${playerId + 1} S${slotIndex + 1} 妖狐が占いで死亡`);
+  logPush(game, `P${playerId + 1} S${slotIndex + 1} 妖狐CO（占い死亡）`);
 
   killLinkedFoxByPair(game, slot.foxPairKey, playerId, slotIndex, logPush);
 }
