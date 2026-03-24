@@ -33,7 +33,7 @@ function killLinkedFox(game, foxPairKey, sourcePlayerId, sourceSlotIndex, logPus
 
       slot.dead = true;
       slot.deathReason = DEATH.FOX_LINK;
-      logPush(game, `P${player.id + 1} S${i + 1} 妖狐連動死亡`);
+      logPush(game, `P${player.id + 1} S${i + 1} 妖狐CO（連動死亡）`);
     }
   }
 }
