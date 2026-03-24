@@ -31,6 +31,11 @@ function relationLabel(viewAsId, playerId) {
 }
 
 function slotRoleText(slot, playerId, viewAsId, revealAll, mode) {
+  // 妖狐は死亡したら即CO
+  if (slot.dead && slot.role === ROLES.FOX) {
+    return "狐";
+  }
+
   if (revealAll) {
     if (slot.isPublic) return fullRevealPublicLabel(slot);
     return roleChar(slot.role);
