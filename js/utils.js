@@ -358,20 +358,26 @@ function pickByPriorityGroups(cands, classifyFn, priority, preferHidden = false)
   return null;
 }
 
-export function pickCpuLynchTarget(player, game) {
+export function pickCpuLynchTarget(player) {
   const alive = getAliveSlots(player);
   if (!alive.length) return null;
 
   const trust = judgeLineTrust(player);
   const mediumAlive = isLineAlive(player, PUBLIC_KIND.MEDIUM);
 
-  let priority = CPU_RULES.LYNCH.NORMAL;
-
-  if (game && isAnyFoxAlive(game)) {
-    priority = hasBlackReserve(player)
-      ? CPU_RULES.LYNCH.FOX_ALIVE_WITH_BLACK_RESERVE
-      : CPU_RULES.LYNCH.FOX_ALIVE_NO_BLACK_RESERVE;
-  }
+  const priority = [
+    "CERT_BLACK",
+    "SPLIT_MEDIUM_ON",
+    "HALF_BLACK_HIGH",
+    "HALF_BLACK_FLAT",
+    "HALF_BLACK_LOW",
+    "SPLIT_MEDIUM_OFF",
+    "GRAY",
+    "HALF_WHITE_LOW",
+    "HALF_WHITE_FLAT",
+    "HALF_WHITE_HIGH",
+    "CERT_WHITE",
+  ];
 
   return pickByPriorityGroups(
     alive,
@@ -381,27 +387,29 @@ export function pickCpuLynchTarget(player, game) {
   );
 }
 
-export function pickCpuReserveTarget(player, seenMap, otherReservedIndex = null, game = null) {
+export function pickCpuReserveTarget(player, seenMap, otherReservedIndex = null) {
   const unseen = hiddenReserveCandidates(player, seenMap);
   if (!unseen.length) return null;
 
-  const priority =
-    game && isAnyFoxAlive(game)
-      ? CPU_RULES.RESERVE.FOX_ALIVE
-      : CPU_RULES.RESERVE.NORMAL;
+  const priority = [
+    "GRAY",        // 最優先：未情報
+    "HALF_BLACK",
+    "HALF_WHITE",
+    "CERT_WHITE",
+  ];
 
   const classify = (slot) => {
-    if (isFox(slot.role)) return "FOX_HIT";
-
     const a = getSlotMark(slot, MARK_KEYS.SEER_A);
     const b = getSlotMark(slot, MARK_KEYS.SEER_B);
+
     const blackCount = (a === MARK.BLACK ? 1 : 0) + (b === MARK.BLACK ? 1 : 0);
     const whiteCount = (a === MARK.WHITE ? 1 : 0) + (b === MARK.WHITE ? 1 : 0);
 
-    if (blackCount === 1) return "HALF_BLACK";
     if (blackCount === 0 && whiteCount === 0) return "GRAY";
+    if (blackCount === 1) return "HALF_BLACK";
     if (blackCount === 0 && whiteCount === 1) return "HALF_WHITE";
     if (blackCount === 0 && whiteCount >= 2) return "CERT_WHITE";
+
     return "GRAY";
   };
 
@@ -505,7 +513,17 @@ export function pickCpuBiteTarget(targetPlayer, game) {
   if (!cands.length) return null;
 
   const trust = judgeLineTrust(targetPlayer);
-  const priority = getBitePriority(targetPlayer, game);
+
+  const priority = [
+    "MEDIUM",
+    "SEER_HIGH",
+    "SEER_FLAT",
+    "CERT_WHITE",
+    "HALF_WHITE",
+    "GRAY",
+    "HALF_BLACK",
+    "BLACK",
+  ];
 
   return pickFromTopPriorityOnly(
     cands,
@@ -519,7 +537,17 @@ export function pickCpuGuardTarget(targetPlayer, game) {
   if (!cands.length) return null;
 
   const trust = judgeLineTrust(targetPlayer);
-  const priority = getGuardPriority(targetPlayer);
+
+  const priority = [
+    "SEER_HIGH",
+    "MEDIUM",
+    "SEER_FLAT",
+    "CERT_WHITE",
+    "HALF_WHITE",
+    "GRAY",
+    "HALF_BLACK",
+    "BLACK",
+  ];
 
   return pickFromTopPriorityOnly(
     cands,
