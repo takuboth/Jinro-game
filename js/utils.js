@@ -5,10 +5,8 @@ import {
   isWolfRole,
   countsAsWolf,
   canBeBitten,
-  canGuardSelfTarget,
   isFoxRole,
 } from "./roles.js";
-import { CPU_RULES } from "./cpuRules.js";
 import { CONFIG, ROLES, MARK, PUBLIC_KIND } from "./config.js";
 
 export function nowStamp() {
@@ -272,7 +270,6 @@ export function hasBlackReserve(player) {
 
   return player.slots.some(slot => {
     if (slot.dead) return false;
-    if (isFox(slot.role)) return false;
 
     const a = getSlotMark(slot, MARK_KEYS.SEER_A);
     const b = getSlotMark(slot, MARK_KEYS.SEER_B);
@@ -280,10 +277,10 @@ export function hasBlackReserve(player) {
     const aBlack = a === MARK.BLACK;
     const bBlack = b === MARK.BLACK;
 
-    // 確定黒
+    // 両黒
     if (aBlack && bBlack) return true;
 
-    // 真占い寄りの単黒
+    // 真寄りの単黒
     if (trust.trueLike === "A" && aBlack && !bBlack) return true;
     if (trust.trueLike === "B" && bBlack && !aBlack) return true;
 
@@ -301,8 +298,6 @@ export function classifySlotForLynch(slot, trust, mediumAlive = false) {
   const bWhite = b === MARK.WHITE;
 
   const trueLike = trust.trueLike;
-
-  if (isFox(slot.role)) return "FOX_HIT";
 
   if (aBlack && bBlack) return "CERT_BLACK";
 
@@ -358,26 +353,61 @@ function pickByPriorityGroups(cands, classifyFn, priority, preferHidden = false)
   return null;
 }
 
-export function pickCpuLynchTarget(player) {
+export function pickCpuLynchTarget(player, game = null) {
   const alive = getAliveSlots(player);
   if (!alive.length) return null;
 
   const trust = judgeLineTrust(player);
   const mediumAlive = isLineAlive(player, PUBLIC_KIND.MEDIUM);
 
-  const priority = [
-    "CERT_BLACK",
-    "SPLIT_MEDIUM_ON",
-    "HALF_BLACK_HIGH",
-    "HALF_BLACK_FLAT",
-    "HALF_BLACK_LOW",
-    "SPLIT_MEDIUM_OFF",
-    "GRAY",
-    "HALF_WHITE_LOW",
-    "HALF_WHITE_FLAT",
-    "HALF_WHITE_HIGH",
-    "CERT_WHITE",
-  ];
+  let priority;
+
+  if (game && isAnyFoxAlive(game)) {
+    // 妖狐が生きていて、黒の担保がない時は灰寄り
+    if (hasBlackReserve(player)) {
+      priority = [
+        "CERT_BLACK",
+        "SPLIT_MEDIUM_ON",
+        "HALF_BLACK_HIGH",
+        "HALF_BLACK_FLAT",
+        "HALF_BLACK_LOW",
+        "SPLIT_MEDIUM_OFF",
+        "GRAY",
+        "HALF_WHITE_LOW",
+        "HALF_WHITE_FLAT",
+        "HALF_WHITE_HIGH",
+        "CERT_WHITE",
+      ];
+    } else {
+      priority = [
+        "GRAY",
+        "SPLIT_MEDIUM_ON",
+        "HALF_BLACK_HIGH",
+        "HALF_BLACK_FLAT",
+        "HALF_BLACK_LOW",
+        "SPLIT_MEDIUM_OFF",
+        "HALF_WHITE_LOW",
+        "HALF_WHITE_FLAT",
+        "HALF_WHITE_HIGH",
+        "CERT_WHITE",
+        "CERT_BLACK",
+      ];
+    }
+  } else {
+    priority = [
+      "CERT_BLACK",
+      "SPLIT_MEDIUM_ON",
+      "HALF_BLACK_HIGH",
+      "HALF_BLACK_FLAT",
+      "HALF_BLACK_LOW",
+      "SPLIT_MEDIUM_OFF",
+      "GRAY",
+      "HALF_WHITE_LOW",
+      "HALF_WHITE_FLAT",
+      "HALF_WHITE_HIGH",
+      "CERT_WHITE",
+    ];
+  }
 
   return pickByPriorityGroups(
     alive,
@@ -387,16 +417,14 @@ export function pickCpuLynchTarget(player) {
   );
 }
 
-export function pickCpuReserveTarget(player, seenMap, otherReservedIndex = null) {
+export function pickCpuReserveTarget(player, seenMap, otherReservedIndex = null, game = null) {
   const unseen = hiddenReserveCandidates(player, seenMap);
   if (!unseen.length) return null;
 
-  const priority = [
-    "GRAY",        // 最優先：未情報
-    "HALF_BLACK",
-    "HALF_WHITE",
-    "CERT_WHITE",
-  ];
+  const priority =
+    game && isAnyFoxAlive(game)
+      ? ["GRAY", "HALF_BLACK", "HALF_WHITE", "CERT_WHITE"]
+      : ["GRAY", "HALF_BLACK", "HALF_WHITE", "CERT_WHITE"];
 
   const classify = (slot) => {
     const a = getSlotMark(slot, MARK_KEYS.SEER_A);
@@ -451,8 +479,6 @@ function classifyProtectTarget(slot, trust) {
     return "MEDIUM";
   }
 
-  if (isFox(slot.role)) return "FOX";
-
   if (aWhite && bWhite) return "CERT_WHITE";
 
   const blackCount = (aBlack ? 1 : 0) + (bBlack ? 1 : 0);
@@ -477,35 +503,126 @@ function pickFromTopPriorityOnly(cands, classifyFn, priority) {
 }
 
 function getBitePriority(player, game) {
+  // 妖狐生存中は占い噛みをかなり抑える
   if (game && isAnyFoxAlive(game)) {
-    return CPU_RULES.BITE.FOX_ALIVE;
+    return [
+      "MEDIUM",
+      "CERT_WHITE",
+      "HALF_WHITE",
+      "GRAY",
+      "HALF_BLACK",
+      "BLACK",
+      "SEER_LOW",
+      "SEER_FLAT",
+      "SEER_HIGH",
+    ];
   }
 
   if (hasSplitWithLiveMedium(player)) {
-    return CPU_RULES.BITE.SPLIT_MEDIUM;
+    return [
+      "MEDIUM",
+      "SEER_FLAT",
+      "SEER_HIGH",
+      "SEER_LOW",
+      "CERT_WHITE",
+      "HALF_WHITE",
+      "GRAY",
+      "HALF_BLACK",
+      "BLACK",
+    ];
   }
 
   if (hasHighTrustSeer(player)) {
-    return CPU_RULES.BITE.HIGH_SEER;
+    return [
+      "SEER_HIGH",
+      "MEDIUM",
+      "SEER_FLAT",
+      "SEER_LOW",
+      "CERT_WHITE",
+      "HALF_WHITE",
+      "GRAY",
+      "HALF_BLACK",
+      "BLACK",
+    ];
   }
 
   return Math.random() < 0.5
-    ? CPU_RULES.BITE.NORMAL_A
-    : CPU_RULES.BITE.NORMAL_B;
+    ? [
+        "MEDIUM",
+        "SEER_FLAT",
+        "SEER_HIGH",
+        "SEER_LOW",
+        "CERT_WHITE",
+        "HALF_WHITE",
+        "GRAY",
+        "HALF_BLACK",
+        "BLACK",
+      ]
+    : [
+        "SEER_FLAT",
+        "MEDIUM",
+        "SEER_HIGH",
+        "SEER_LOW",
+        "CERT_WHITE",
+        "HALF_WHITE",
+        "GRAY",
+        "HALF_BLACK",
+        "BLACK",
+      ];
 }
 
 function getGuardPriority(player) {
   if (hasSplitWithLiveMedium(player)) {
-    return CPU_RULES.GUARD.SPLIT_MEDIUM;
+    return [
+      "MEDIUM",
+      "SEER_FLAT",
+      "SEER_HIGH",
+      "SEER_LOW",
+      "CERT_WHITE",
+      "HALF_WHITE",
+      "GRAY",
+      "HALF_BLACK",
+      "BLACK",
+    ];
   }
 
   if (hasHighTrustSeer(player)) {
-    return CPU_RULES.GUARD.HIGH_SEER;
+    return [
+      "SEER_HIGH",
+      "MEDIUM",
+      "SEER_FLAT",
+      "SEER_LOW",
+      "CERT_WHITE",
+      "HALF_WHITE",
+      "GRAY",
+      "HALF_BLACK",
+      "BLACK",
+    ];
   }
 
   return Math.random() < 0.5
-    ? CPU_RULES.GUARD.NORMAL_A
-    : CPU_RULES.GUARD.NORMAL_B;
+    ? [
+        "MEDIUM",
+        "SEER_FLAT",
+        "SEER_HIGH",
+        "SEER_LOW",
+        "CERT_WHITE",
+        "HALF_WHITE",
+        "GRAY",
+        "HALF_BLACK",
+        "BLACK",
+      ]
+    : [
+        "SEER_FLAT",
+        "MEDIUM",
+        "SEER_HIGH",
+        "SEER_LOW",
+        "CERT_WHITE",
+        "HALF_WHITE",
+        "GRAY",
+        "HALF_BLACK",
+        "BLACK",
+      ];
 }
 
 export function pickCpuBiteTarget(targetPlayer, game) {
@@ -513,17 +630,7 @@ export function pickCpuBiteTarget(targetPlayer, game) {
   if (!cands.length) return null;
 
   const trust = judgeLineTrust(targetPlayer);
-
-  const priority = [
-    "MEDIUM",
-    "SEER_HIGH",
-    "SEER_FLAT",
-    "CERT_WHITE",
-    "HALF_WHITE",
-    "GRAY",
-    "HALF_BLACK",
-    "BLACK",
-  ];
+  const priority = getBitePriority(targetPlayer, game);
 
   return pickFromTopPriorityOnly(
     cands,
@@ -537,17 +644,7 @@ export function pickCpuGuardTarget(targetPlayer, game) {
   if (!cands.length) return null;
 
   const trust = judgeLineTrust(targetPlayer);
-
-  const priority = [
-    "SEER_HIGH",
-    "MEDIUM",
-    "SEER_FLAT",
-    "CERT_WHITE",
-    "HALF_WHITE",
-    "GRAY",
-    "HALF_BLACK",
-    "BLACK",
-  ];
+  const priority = getGuardPriority(targetPlayer);
 
   return pickFromTopPriorityOnly(
     cands,
